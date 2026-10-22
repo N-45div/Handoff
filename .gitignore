@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Next
+/node_modules
+/.next/
+/out/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Gated AI Village data — never commit
+/data
+/vendor
+/.handoff
+/.notebook
+
+# OS / IDE
+.DS_Store
+*.pem
+.vercel
+*.tsbuildinfo
