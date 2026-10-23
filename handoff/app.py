@@ -8,9 +8,10 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from handoff.ingest import ingest_text
-from handoff.score import investigate_table, pack, score
-from handoff.zetaris import run_sql
+from handoff.catalog import load_listings, quote, set_price
+from handoff.env_export import episode, write_nightshift
+from handoff.ingest import normalize
+from handoff.score import investigate_table, investigate_text, score
 
 WEB = Path(__file__).resolve().parent / "web"
 DEMO_TABLE = "HANDOFF.promises"
@@ -28,6 +29,8 @@ def index() -> FileResponse:
 @app.get("/api/health")
 def health() -> dict:
     try:
+        from handoff.zetaris import run_sql
+
         ping = run_sql("SELECT 1 AS one", limit=1)
         dbs = run_sql("SHOW LIGHTNING DATABASES", limit=20)
         return {"ok": True, "zetaris": True, "select1": ping, "databases": dbs}
@@ -38,7 +41,9 @@ def health() -> dict:
 @app.get("/api/demo")
 def demo() -> dict:
     try:
-        return investigate_table(DEMO_TABLE, "AI Village — three post-Alibi weeks")
+        blob = investigate_table(DEMO_TABLE, "AI Village — three post-Alibi weeks")
+        blob["for_sale"] = False
+        return blob
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e)[:400]) from e
 
@@ -54,6 +59,53 @@ def sample() -> dict:
     }
 
 
+@app.get("/api/catalog")
+def catalog() -> dict:
+    return {
+        "take_rate": 0.20,
+        "village_forbidden": True,
+        "listings": load_listings(),
+        "quote_example": quote(50),
+    }
+
+
+@app.post("/api/catalog/price")
+def catalog_price(listing_id: str = Form(...), list_price_usd: float = Form(...)) -> dict:
+    try:
+        return set_price(listing_id, list_price_usd)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=f"unknown listing {e}") from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/api/env/nightshift")
+def env_nightshift() -> dict:
+    path = write_nightshift()
+    return json_episode(path)
+
+
+def json_episode(path: Path) -> dict:
+    import json
+
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.post("/api/env/export")
+async def env_export(
+    swarm: str = Form("new-swarm"),
+    file: UploadFile | None = File(None),
+    body: str = Form(""),
+) -> dict:
+    raw = body
+    if file is not None:
+        raw = (await file.read()).decode("utf-8", errors="replace")
+    if not raw.strip():
+        raise HTTPException(status_code=400, detail="Paste JSONL/CSV or attach a file.")
+    rows = normalize(raw, swarm)
+    return episode(rows, score(rows), swarm)
+
+
 @app.post("/api/investigate")
 async def investigate(
     swarm: str = Form("new-swarm"),
@@ -66,21 +118,9 @@ async def investigate(
     if not raw.strip():
         raise HTTPException(status_code=400, detail="Paste JSONL/CSV or attach a file.")
     try:
-        meta = ingest_text(raw, swarm)
-        result = investigate_table(meta["table"], swarm)
-        result["ingested"] = meta
-        return result
+        return investigate_text(raw, swarm)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:
-        # Still score locally if FILESTORE registration fails, but say so.
-        from handoff.ingest import normalize
-
-        rows = normalize(raw, swarm)
-        packed = pack("memory", rows, score(rows), swarm)
-        packed["warning"] = f"Zetaris register failed, scored in memory: {str(e)[:240]}"
-        packed["engine"] = "memory-fallback"
-        return packed
 
 
 def main() -> None:

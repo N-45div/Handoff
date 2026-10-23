@@ -61,6 +61,17 @@ button:disabled { opacity: 0.5; cursor: wait; }
 .quote { margin: 8px 0 6px; font-size: 16px; line-height: 1.4; }
 .why { margin: 0; font-size: 13px; color: var(--muted); }
 .warn { color: var(--dropped); font-size: 13px; }
+.improve { list-style: none; padding: 0; margin: 18px 0 0; border-top: 1px solid var(--ink); }
+.improve li { padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.market { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--ink); }
+.market-head h2 { font-family: "Newsreader", serif; font-weight: 480; margin: 0 0 6px; }
+.market-head p { margin: 0 0 14px; color: var(--muted); }
+.listings { display: grid; gap: 12px; }
+.listing { background: #fffdf8; border: 1px solid var(--rule); padding: 14px; }
+.listing h3 { font-family: "Newsreader", serif; margin: 0 0 6px; }
+.listing form.price { display: flex; gap: 8px; align-items: end; margin-top: 10px; }
+.listing form.price label { margin: 0; }
+.listing form.price input { width: 120px; }
 @media (max-width: 860px) {
   .lede, .desk { grid-template-columns: 1fr; }
 }

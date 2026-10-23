@@ -56,7 +56,18 @@
       <button data-v="duplicate">Duplicate</button>
       <button data-v="kept">Kept</button>
     </div>
+    <ol id="improve" class="improve" hidden></ol>
     <ol id="feed" class="feed"></ol>
+  </section>
+
+  <section class="market" id="market">
+    <div class="market-head">
+      <h2>Catalog (demo)</h2>
+      <p>Seller sets the list price. Handoff takes 20%. Village weeks are not listed and not for training.</p>
+    </div>
+    <div id="listings" class="listings">Loading listings…</div>
+    <p class="hint" id="env-meta"></p>
+    <button type="button" id="export-env">Download Nightshift OpenEnv episode</button>
   </section>
 
   <script src="/static/app.js"></script>

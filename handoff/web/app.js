@@ -31,6 +31,15 @@ function render(data) {
     </div>`).join("");
 
   $("filters").hidden = false;
+  const tips = data.improve || [];
+  $("improve").hidden = tips.length === 0;
+  $("improve").innerHTML = tips.map((t) => `
+    <li>
+      <span class="badge ${t.verdict}">${t.verdict}</span>
+      <span>${escapeHtml(t.from || "")}</span>
+      <p class="quote">${escapeHtml(t.quote || "")}</p>
+      <p class="why">${escapeHtml(t.change || "")}</p>
+    </li>`).join("");
   paintFeed();
 }
 
@@ -95,4 +104,58 @@ $("ingest").addEventListener("submit", async (e) => {
   }
 });
 
+async function loadCatalog() {
+  try {
+    const data = await (await fetch("/api/catalog")).json();
+    $("listings").innerHTML = (data.listings || []).map((row) => `
+      <article class="listing">
+        <h3>${escapeHtml(row.title || row.id)}</h3>
+        <p class="hint">${escapeHtml(row.notes || "")} · ${escapeHtml(row.license || "")}</p>
+        <p>List <b>$${Number(row.list_price_usd).toFixed(2)}</b> · take 20% = <b>$${Number(row.platform_take_usd).toFixed(2)}</b> · seller <b>$${Number(row.seller_payout_usd).toFixed(2)}</b></p>
+        <form class="price" data-id="${escapeHtml(row.id)}">
+          <label>Set price (USD)
+            <input name="list_price_usd" type="number" min="0" step="0.01" value="${Number(row.list_price_usd)}" />
+          </label>
+          <button type="submit">Update</button>
+        </form>
+      </article>`).join("") || "<p class='hint'>No listings.</p>";
+  } catch (err) {
+    $("listings").textContent = String(err);
+  }
+}
+
+$("listings").addEventListener("submit", async (e) => {
+  const form = e.target.closest("form.price");
+  if (!form) return;
+  e.preventDefault();
+  const fd = new FormData();
+  fd.set("listing_id", form.dataset.id);
+  fd.set("list_price_usd", form.list_price_usd.value);
+  const res = await fetch("/api/catalog/price", { method: "POST", body: fd });
+  if (!res.ok) {
+    $("listings").textContent = "Price update failed";
+    return;
+  }
+  await loadCatalog();
+});
+
+$("export-env").addEventListener("click", async () => {
+  $("export-env").disabled = true;
+  try {
+    const data = await (await fetch("/api/env/nightshift")).json();
+    $("env-meta").textContent = `${data.env} · ${data.reward_spec} · terminal reward ${data.terminal_reward} · ${ (data.steps || []).length } steps · ${data.license}`;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "nightshift-episode.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    $("env-meta").textContent = String(err);
+  } finally {
+    $("export-env").disabled = false;
+  }
+});
+
 health();
+loadCatalog();
