@@ -1,0 +1,5 @@
+name: handoff-nightshift
+description: Handoff-graded swarm episode. Reward handoff-reward@0.1.
+type: coding
+tags: [handoff, promises, demo]
+license: demo-not-for-training
