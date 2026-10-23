@@ -17,6 +17,17 @@ Verdicts: kept, dropped, unclaimed, duplicate.
 
 **Track:** Open Agent Hackathon 2026 — Track 02, The Agent That Can Explain Why.
 
+Week timeline, competitor notes, and the catalog / OpenEnv POC: [ROADMAP.md](ROADMAP.md).
+
+**Catalog (demo):** seller sets a list price; Handoff takes 20%. Nightshift only. Village is never listed.
+
+```bash
+python -m handoff.env_export
+python -m handoff.mcp_server
+```
+
+Cursor MCP: copy [mcp.example.json](mcp.example.json) into your MCP config (`cwd` must be this repo).
+
 Ask: *why did the swarm stall on goal X?*
 
 - Who promised what to whom
