@@ -13,6 +13,7 @@ from huggingface_hub import hf_hub_download
 
 REPO = "aidigestorg/ai-village"
 CATALOG = ("village_goals.jsonl.gz", "agents.jsonl.gz", "agent_goals.jsonl.gz", "chat_rooms.jsonl.gz")
+CHAT = "chat_messages.jsonl.gz"
 
 
 def data_dir() -> Path:
@@ -24,11 +25,14 @@ def data_dir() -> Path:
 
 def download(name: str) -> Path:
     dest_dir = data_dir()
+    load_dotenv()
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     path = hf_hub_download(
         repo_id=REPO,
         repo_type="dataset",
         filename=name,
         local_dir=str(dest_dir / "raw"),
+        token=token,
     )
     return Path(path)
 
@@ -47,12 +51,20 @@ def catalog() -> None:
         print(f"ok {name} -> {path}")
 
 
+def chat() -> None:
+    path = download(CHAT)
+    print(f"ok {CHAT} -> {path}")
+
+
 def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "catalog"
     if cmd == "catalog":
         catalog()
         return
-    print("usage: python -m handoff.fetch catalog", file=sys.stderr)
+    if cmd == "chat":
+        chat()
+        return
+    print("usage: python -m handoff.fetch [catalog|chat]", file=sys.stderr)
     sys.exit(2)
 
 

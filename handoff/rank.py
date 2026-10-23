@@ -8,16 +8,21 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from handoff.fetch import CATALOG, data_dir, download, read_jsonl_gz
+from handoff.fetch import CATALOG, CHAT, data_dir, download, read_jsonl_gz
 from handoff.patterns import looks_like_handoff
 
 
 def parse_ts(value: str | None) -> datetime | None:
     if not value:
         return None
+    text = value.strip().replace("T", " ").split("+")[0].split("Z")[0]
+    if "." in text:
+        head, frac = text.split(".", 1)
+        frac = "".join(ch for ch in frac if ch.isdigit())[:6].ljust(6, "0")
+        text = f"{head}.{frac}"
     for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
-            return datetime.strptime(value[:26], fmt)
+            return datetime.strptime(text, fmt)
         except ValueError:
             continue
     return None
@@ -37,8 +42,8 @@ def rank() -> list[dict]:
 
     chat_path = raw / "chat_messages.jsonl.gz"
     if not chat_path.exists():
-        print("chat_messages.jsonl.gz missing — ranking goals by schedule only", file=sys.stderr)
-        print("run: python -m handoff.fetch catalog   then download chat when ready", file=sys.stderr)
+        print("downloading chat_messages.jsonl.gz (~56 MB)…", file=sys.stderr)
+        chat_path = download(CHAT)
         rows = []
         for g in goals:
             start = parse_ts(g.get("start_time"))
@@ -57,32 +62,37 @@ def rank() -> list[dict]:
         return rows
 
     buckets = defaultdict(lambda: {"agent_messages": 0, "handoff_like": 0})
-    intervals = []
-    for g in goals:
-        intervals.append(
-            (
-                parse_ts(g.get("start_time")) or datetime.min,
-                parse_ts(g.get("end_time")) or datetime.max,
-                g.get("id"),
-            )
-        )
+    windows: list[tuple[datetime, datetime, str]] = []
+    for i, g in enumerate(goals):
+        start = parse_ts(g.get("start_time")) or datetime.min
+        if i + 1 < len(goals):
+            end = parse_ts(goals[i + 1].get("start_time")) or datetime.max
+        else:
+            end = parse_ts(g.get("end_time")) or datetime.max
+        ident = g.get("id")
+        if ident:
+            windows.append((start, end, ident))
 
+    unmatched = 0
     for msg in read_jsonl_gz(chat_path):
         if msg.get("speaker_type") != "agent":
             continue
         ts = parse_ts(msg.get("created_at"))
         if ts is None:
+            unmatched += 1
             continue
         gid = None
-        for start, end, ident in intervals:
-            if start <= ts <= end:
+        for start, end, ident in windows:
+            if start <= ts < end:
                 gid = ident
                 break
         if gid is None:
+            unmatched += 1
             continue
         buckets[gid]["agent_messages"] += 1
         if looks_like_handoff(msg.get("content") or ""):
             buckets[gid]["handoff_like"] += 1
+    print(f"unmatched agent messages: {unmatched}", file=sys.stderr)
 
     rows = []
     for g in goals:
