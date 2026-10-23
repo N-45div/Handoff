@@ -3,73 +3,80 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Handoff — swarm post-mortem</title>
+  <title>Handoff — tasks from agent transcripts</title>
+  <meta name="description" content="Handoff is the agent that turns a swarm or coding-agent transcript into a lab task: instruction, episode, verifier. Labs train on tasks, not dumps." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,480;6..72,600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="stylesheet" href="/static/app.css?v=2" />
 </head>
-<body>
-  <header class="top">
-    <div>
-      <p class="mark">Handoff</p>
-      <h1>Who promised, and who actually took it.</h1>
+<body class="landing">
+  <nav class="nav">
+    <a class="brand" href="/">Handoff</a>
+    <div class="nav-links">
+      <a href="#product">Product</a>
+      <a href="#catalog">Catalog</a>
+      <a href="/desk">Desk</a>
+      <span class="engine" id="health">checking Zetaris…</span>
     </div>
-    <p class="engine" id="health">checking Zetaris…</p>
+  </nav>
+
+  <header class="hero">
+    <p class="mark">MVP · Track 02 · Open Agent Hackathon 2026</p>
+    <h1>Labs don’t buy dumps. They buy tasks.</h1>
+    <p class="hero-lede">Handoff is the agent that turns a swarm or coding-agent transcript into a task: instruction, episode, and a verifier. The verifier is whether promises were kept, dropped, duplicated, or never claimed — and that is the reward.</p>
+    <div class="row">
+      <a class="cta" href="/desk">Open the desk</a>
+      <a class="cta ghost" href="/desk?sample=coding">Build from a coding log</a>
+    </div>
   </header>
 
-  <section class="lede">
-    <p>Chat is the contract. Drop a swarm transcript — JSONL or CSV — and Handoff scores every agent-to-agent promise as <strong>kept</strong>, <strong>dropped</strong>, <strong>unclaimed</strong>, or <strong>duplicate</strong>. The Village weeks are a demo. Your swarm is the product.</p>
-    <p class="not-alibi">Not Alibi. Alibi audits claims about the past. This desk audits promises between agents.</p>
+  <section id="product" class="steps">
+    <article>
+      <p class="num">01</p>
+      <h2>Drop a transcript</h2>
+      <p>JSONL or CSV. Speaker + content, or Cursor / Claude-shaped <code>role</code> blocks. Extra keys ignored. Secrets never become a task.</p>
+    </article>
+    <article>
+      <p class="num">02</p>
+      <h2>Score the promises</h2>
+      <p>Who promised what to whom. Kept, dropped, unclaimed, duplicate — cited from the log via Zetaris. That is why the swarm stalled.</p>
+    </article>
+    <article>
+      <p class="num">03</p>
+      <h2>Emit the task</h2>
+      <p>Instruction + OpenEnv episode + <code>handoff-reward@0.1</code>. Seller sets the list price. Handoff takes 20%. Village data is never listed.</p>
+    </article>
   </section>
 
-  <section class="desk">
-    <form id="ingest" class="panel">
-      <label>Swarm name
-        <input id="swarm" name="swarm" value="Nightshift" autocomplete="off" />
-      </label>
-      <label>Transcript
-        <textarea id="body" name="body" rows="12" placeholder='{"speaker":"Atlas","content":"I will cut traffic at 10:00","created_at":"2026-10-20 09:20:00"}'></textarea>
-      </label>
-      <div class="row">
-        <label class="file">Attach file
-          <input id="file" type="file" name="file" accept=".jsonl,.json,.csv,.txt" />
-        </label>
-        <button type="button" id="load-sample">Load sample swarm</button>
-        <button type="button" id="load-village">Load Village demo</button>
-        <button type="submit" id="run">Investigate</button>
-      </div>
-      <p class="hint">Need <code>speaker</code> + <code>content</code>. Optional: <code>created_at</code>, <code>goal</code>. Registered in Zetaris as a FILESTORE table, then scored over REST.</p>
-    </form>
-
-    <div class="panel result">
-      <div id="stats" class="stats empty">No investigation yet.</div>
-      <div id="weeks"></div>
+  <section class="split">
+    <div>
+      <h2>Who it’s for</h2>
+      <ul class="plain">
+        <li><strong>Labs</strong> — consented tasks with a verifier, not scraped chat.</li>
+        <li><strong>Teams with traces</strong> — list a task, set the price, keep 80%.</li>
+        <li><strong>Researchers</strong> — investigate why a swarm stalled. Village is research-only.</li>
+      </ul>
     </div>
+    <aside class="panel quote-panel">
+      <p>Raw logs are worth little. The only way to make them worth anything is turning them into tasks agents can learn from.</p>
+      <p class="hint">That is the product. Not a marketplace of JSONL. Not Alibi (prior work: past-claims audit).</p>
+    </aside>
   </section>
 
-  <section>
-    <div class="filters" id="filters" hidden>
-      <button data-v="all" class="on">All</button>
-      <button data-v="dropped">Dropped</button>
-      <button data-v="unclaimed">Unclaimed</button>
-      <button data-v="duplicate">Duplicate</button>
-      <button data-v="kept">Kept</button>
-    </div>
-    <ol id="improve" class="improve" hidden></ol>
-    <ol id="feed" class="feed"></ol>
-  </section>
-
-  <section class="market" id="market">
+  <section id="catalog" class="market">
     <div class="market-head">
-      <h2>Catalog (demo)</h2>
-      <p>Seller sets the list price. Handoff takes 20%. Village weeks are not listed and not for training.</p>
+      <h2>Demo catalog</h2>
+      <p>Two synthetic tasks. Not for training. Seller price is live; take is 20%.</p>
     </div>
-    <div id="listings" class="listings">Loading listings…</div>
-    <p class="hint" id="env-meta"></p>
-    <button type="button" id="export-env">Download Nightshift OpenEnv episode</button>
+    <div id="listings" class="listings two">Loading listings…</div>
+    <p class="hint"><a href="/desk">Open the desk</a> to change a price or download a task JSON. MCP tool: <code>handoff_build_task</code>.</p>
   </section>
 
-  <script src="/static/app.js"></script>
+  <footer class="foot">
+    <p>Zetaris is the query engine. NVIDIA Nemotron explains why after SQL. AI Village is cited for research and is never sold.</p>
+  </footer>
+
+  <script src="/static/landing.js"></script>
 </body>
 </html>

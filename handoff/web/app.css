@@ -10,14 +10,47 @@
   --mark: #b33a1a;
 }
 * { box-sizing: border-box; }
+a { color: var(--ink); text-decoration: none; }
+a:hover { border-bottom: 1px solid var(--ink); }
+a.cta:hover, a.brand:hover, .nav-links a:hover { border-bottom: none; }
 html, body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: "Source Sans 3", sans-serif;
 }
-body { max-width: 1120px; margin: 0 auto; padding: 28px 22px 80px; }
-.top { display: flex; justify-content: space-between; gap: 24px; align-items: end; border-bottom: 1px solid var(--ink); padding-bottom: 18px; }
+body { max-width: 1120px; margin: 0 auto; padding: 0 22px 80px; }
+.nav {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  border-bottom: 1px solid var(--ink); padding: 18px 0;
+}
+.brand {
+  font-family: "Newsreader", serif; font-size: 22px; color: var(--ink); text-decoration: none;
+}
+.nav-links { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.nav-links a {
+  color: var(--ink); text-decoration: none; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.nav-links a[aria-current="page"] { border-bottom: 1px solid var(--ink); }
+.hero { padding: 48px 0 36px; border-bottom: 1px solid var(--ink); }
+.hero h1 { max-width: 14ch; font-size: clamp(36px, 6vw, 64px); }
+.hero-lede { max-width: 52ch; font-size: 18px; line-height: 1.45; margin: 18px 0 22px; }
+a.cta {
+  display: inline-block; font: 12px/1 "Source Sans 3", sans-serif; letter-spacing: 0.04em; text-transform: uppercase;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--paper); padding: 11px 14px; text-decoration: none;
+}
+a.cta.ghost { background: transparent; color: var(--ink); }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 36px 0; border-bottom: 1px solid var(--rule); }
+.steps h2 { font-family: "Newsreader", serif; font-weight: 480; font-size: 22px; margin: 0 0 8px; }
+.steps p { margin: 0; color: var(--muted); line-height: 1.4; }
+.num { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.12em; margin: 0 0 8px; color: var(--mark); }
+.split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; padding: 36px 0; }
+.split h2 { font-family: "Newsreader", serif; font-weight: 480; margin: 0 0 12px; }
+.plain { margin: 0; padding-left: 18px; line-height: 1.55; }
+.quote-panel p { font-family: "Newsreader", serif; font-size: 22px; line-height: 1.3; margin: 0 0 12px; }
+.listings.two { grid-template-columns: 1fr 1fr; }
+.foot { border-top: 1px solid var(--rule); padding: 22px 0 0; color: var(--muted); font-size: 13px; }
+.top { display: flex; justify-content: space-between; gap: 24px; align-items: end; border-bottom: 1px solid var(--ink); padding: 22px 0 18px; }
 .mark { font-family: "Newsreader", serif; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; margin: 0 0 8px; color: var(--mark); }
 h1 { font-family: "Newsreader", serif; font-weight: 480; font-size: clamp(28px, 4vw, 44px); line-height: 1.05; margin: 0; max-width: 16ch; }
 .engine { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); margin: 0; }
@@ -73,5 +106,6 @@ button:disabled { opacity: 0.5; cursor: wait; }
 .listing form.price label { margin: 0; }
 .listing form.price input { width: 120px; }
 @media (max-width: 860px) {
-  .lede, .desk { grid-template-columns: 1fr; }
+  .lede, .desk, .steps, .split, .listings.two { grid-template-columns: 1fr; }
+  .hero { padding-top: 28px; }
 }

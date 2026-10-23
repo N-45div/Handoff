@@ -22,6 +22,7 @@ function render(data) {
     ["Kept", c.kept ?? 0],
   ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("")
     + (data.warning ? `<p class="warn">${data.warning}</p>` : "")
+    + (data.task_blocked ? `<p class="warn">${data.task_blocked}</p>` : "")
     + `<p class="hint">${data.name || ""} · ${data.source || ""} · ${data.engine || ""}</p>`;
 
   $("weeks").innerHTML = (data.weeks || []).map((w) => `
@@ -71,7 +72,13 @@ $("filters").addEventListener("click", (e) => {
 });
 
 $("load-sample").addEventListener("click", async () => {
-  const s = await (await fetch("/api/sample")).json();
+  const s = await (await fetch("/api/sample?kind=nightshift")).json();
+  $("swarm").value = s.name;
+  $("body").value = s.body;
+});
+
+$("load-coding").addEventListener("click", async () => {
+  const s = await (await fetch("/api/sample?kind=coding")).json();
   $("swarm").value = s.name;
   $("body").value = s.body;
 });
@@ -139,17 +146,50 @@ $("listings").addEventListener("submit", async (e) => {
   await loadCatalog();
 });
 
+function downloadJson(name, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("build-task").addEventListener("click", async () => {
+  const fd = new FormData($("ingest"));
+  $("build-task").disabled = true;
+  $("stats").textContent = "Building a task from this transcript…";
+  try {
+    const res = await fetch("/api/task", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    const v = data.verifier || {};
+    const ep = data.episode || {};
+    $("stats").classList.remove("empty");
+    $("stats").innerHTML = `<p class="hint">${escapeHtml(data.prompt || "")}</p>
+      <p>pass ${v.passed ? "yes" : "no"} · open ${v.open ?? 0} · steps ${(ep.steps || []).length} · terminal ${ep.terminal_reward}
+      · list $${(data.pricing || {}).list_price_usd} · take $${(data.pricing || {}).platform_take_usd}</p>`;
+    $("env-meta").textContent = `${data.kind} · ${data.license} · for_sale ${data.for_sale}`;
+    downloadJson(`${(data.title || "task").replace(/\s+/g, "-").toLowerCase()}-task.json`, data);
+  } catch (err) {
+    $("stats").textContent = String(err);
+  } finally {
+    $("build-task").disabled = false;
+  }
+});
+
 $("export-env").addEventListener("click", async () => {
   $("export-env").disabled = true;
   try {
-    const data = await (await fetch("/api/env/nightshift")).json();
-    $("env-meta").textContent = `${data.env} · ${data.reward_spec} · terminal reward ${data.terminal_reward} · ${ (data.steps || []).length } steps · ${data.license}`;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "nightshift-episode.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const s = await (await fetch("/api/sample?kind=nightshift")).json();
+    const fd = new FormData();
+    fd.set("swarm", s.name);
+    fd.set("body", s.body);
+    const res = await fetch("/api/task", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    $("env-meta").textContent = `${data.title} · ${data.episode?.reward_spec} · terminal ${data.episode?.terminal_reward} · ${data.license}`;
+    downloadJson("nightshift-task.json", data);
   } catch (err) {
     $("env-meta").textContent = String(err);
   } finally {
@@ -159,3 +199,10 @@ $("export-env").addEventListener("click", async () => {
 
 health();
 loadCatalog();
+
+const sample = new URLSearchParams(location.search).get("sample");
+if (sample === "coding") {
+  $("load-coding").click();
+} else if (sample === "nightshift") {
+  $("load-sample").click();
+}

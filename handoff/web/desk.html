@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Handoff desk — build a task</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,480;6..72,600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css?v=2" />
+</head>
+<body class="desk-page">
+  <nav class="nav">
+    <a class="brand" href="/">Handoff</a>
+    <div class="nav-links">
+      <a href="/#product">Product</a>
+      <a href="/desk" aria-current="page">Desk</a>
+      <span class="engine" id="health">checking Zetaris…</span>
+    </div>
+  </nav>
+
+  <header class="top">
+    <div>
+      <p class="mark">Desk</p>
+      <h1>Investigate, then build the task.</h1>
+    </div>
+  </header>
+
+  <section class="lede">
+    <p>Paste a swarm or coding-agent transcript. Investigate answers why it stalled. <strong>Build task</strong> writes the instruction, episode, and verifier a lab can train on.</p>
+    <p class="not-alibi">Village weeks are research-only. Secrets (<code>hf_</code>, <code>sk-</code>, <code>.env</code>) cannot become a task. Not Alibi.</p>
+  </section>
+
+  <section class="desk">
+    <form id="ingest" class="panel">
+      <label>Swarm name
+        <input id="swarm" name="swarm" value="Nightshift" autocomplete="off" />
+      </label>
+      <label>Transcript
+        <textarea id="body" name="body" rows="12" placeholder='{"speaker":"Atlas","content":"I will cut traffic at 10:00","created_at":"2026-10-20 09:20:00"}'></textarea>
+      </label>
+      <div class="row">
+        <label class="file">Attach file
+          <input id="file" type="file" name="file" accept=".jsonl,.json,.csv,.txt" />
+        </label>
+        <button type="button" id="load-sample">Load ops swarm</button>
+        <button type="button" id="load-coding">Load coding log</button>
+        <button type="button" id="load-village">Village research</button>
+        <button type="submit" id="run">Investigate</button>
+        <button type="button" id="build-task">Build task</button>
+      </div>
+      <p class="hint">Speaker + content, or Cursor/Claude-shaped <code>role</code> + content blocks. Extra keys ignored.</p>
+    </form>
+
+    <div class="panel result">
+      <div id="stats" class="stats empty">No investigation yet.</div>
+      <div id="weeks"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="filters" id="filters" hidden>
+      <button data-v="all" class="on">All</button>
+      <button data-v="dropped">Dropped</button>
+      <button data-v="unclaimed">Unclaimed</button>
+      <button data-v="duplicate">Duplicate</button>
+      <button data-v="kept">Kept</button>
+    </div>
+    <ol id="improve" class="improve" hidden></ol>
+    <ol id="feed" class="feed"></ol>
+  </section>
+
+  <section class="market" id="market">
+    <div class="market-head">
+      <h2>Listed tasks</h2>
+      <p>Seller sets the list price. Handoff takes 20%. Village is never listed.</p>
+    </div>
+    <div id="listings" class="listings">Loading listings…</div>
+    <p class="hint" id="env-meta"></p>
+    <button type="button" id="export-env">Download Nightshift task JSON</button>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
