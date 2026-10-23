@@ -1,0 +1,15 @@
+{
+  "take_rate": 0.2,
+  "listings": [
+    {
+      "id": "nightshift-handoff-demo",
+      "title": "Nightshift deploy swarm (synthetic)",
+      "seller": "handoff-demo",
+      "list_price_usd": 50,
+      "license": "demo-not-for-training",
+      "source": "fixtures/nightshift-swarm.jsonl",
+      "episode": "fixtures/openenv/nightshift-episode.json",
+      "notes": "Fixture swarm. Not Village. Not for model training."
+    }
+  ]
+}
