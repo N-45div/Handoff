@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Handoff — swarm post-mortem</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,480;6..72,600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="mark">Handoff</p>
+      <h1>Who promised, and who actually took it.</h1>
+    </div>
+    <p class="engine" id="health">checking Zetaris…</p>
+  </header>
+
+  <section class="lede">
+    <p>Chat is the contract. Drop a swarm transcript — JSONL or CSV — and Handoff scores every agent-to-agent promise as <strong>kept</strong>, <strong>dropped</strong>, <strong>unclaimed</strong>, or <strong>duplicate</strong>. The Village weeks are a demo. Your swarm is the product.</p>
+    <p class="not-alibi">Not Alibi. Alibi audits claims about the past. This desk audits promises between agents.</p>
+  </section>
+
+  <section class="desk">
+    <form id="ingest" class="panel">
+      <label>Swarm name
+        <input id="swarm" name="swarm" value="Nightshift" autocomplete="off" />
+      </label>
+      <label>Transcript
+        <textarea id="body" name="body" rows="12" placeholder='{"speaker":"Atlas","content":"I will cut traffic at 10:00","created_at":"2026-10-20 09:20:00"}'></textarea>
+      </label>
+      <div class="row">
+        <label class="file">Attach file
+          <input id="file" type="file" name="file" accept=".jsonl,.json,.csv,.txt" />
+        </label>
+        <button type="button" id="load-sample">Load sample swarm</button>
+        <button type="button" id="load-village">Load Village demo</button>
+        <button type="submit" id="run">Investigate</button>
+      </div>
+      <p class="hint">Need <code>speaker</code> + <code>content</code>. Optional: <code>created_at</code>, <code>goal</code>. Registered in Zetaris as a FILESTORE table, then scored over REST.</p>
+    </form>
+
+    <div class="panel result">
+      <div id="stats" class="stats empty">No investigation yet.</div>
+      <div id="weeks"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="filters" id="filters" hidden>
+      <button data-v="all" class="on">All</button>
+      <button data-v="dropped">Dropped</button>
+      <button data-v="unclaimed">Unclaimed</button>
+      <button data-v="duplicate">Duplicate</button>
+      <button data-v="kept">Kept</button>
+    </div>
+    <ol id="feed" class="feed"></ol>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

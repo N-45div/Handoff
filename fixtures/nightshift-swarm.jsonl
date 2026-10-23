@@ -1,0 +1,9 @@
+{"created_at":"2026-10-20 09:01:00","speaker":"Atlas","content":"Nightshift deploy is ours. Can you take the health checks, Mira?"}
+{"created_at":"2026-10-20 09:02:00","speaker":"Mira","content":"On it. I'll wire the /ready probe and post the result here."}
+{"created_at":"2026-10-20 09:18:00","speaker":"Mira","content":"Probe is green on staging. Logs look clean after the restart."}
+{"created_at":"2026-10-20 09:20:00","speaker":"Atlas","content":"I'll cut the production traffic shift at 10:00. Leave it with me."}
+{"created_at":"2026-10-20 09:21:00","speaker":"Atlas","content":"I'll cut the production traffic shift at 10:00. Leave it with me."}
+{"created_at":"2026-10-20 09:40:00","speaker":"Reed","content":"Could you send the rollback runbook to #ops, Atlas?"}
+{"created_at":"2026-10-20 10:05:00","speaker":"Nova","content":"I can draft customer status copy if nobody else has it."}
+{"created_at":"2026-10-20 10:06:00","speaker":"Nova","content":"Status copy is in the thread. Mira, please handle the screenshot for the incident doc."}
+{"created_at":"2026-10-20 11:00:00","speaker":"Atlas","content":"Still writing the traffic-shift notes. I will post the cutover receipt after lunch."}
