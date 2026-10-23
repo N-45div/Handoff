@@ -1,17 +1,34 @@
 # Handoff
 
-Post-mortem desk for **any** agent swarm. Chat is the contract. Computer-use logs are whether anyone actually did the work.
+An agent that turns a raw swarm or coding-agent **transcript into a task** a lab can train on: instruction, OpenEnv episode, promise verifier.
+
+Chat is the contract. Promises are kept / dropped / unclaimed / duplicate. That grade **is** the reward. Raw JSONL is not the product. Village dumps are research-only and never listed.
 
 ```bash
 pip install -r requirements.txt
 python -m handoff.app
 ```
 
-Open http://127.0.0.1:8787
+API (Zetaris):
 
-- **Load sample swarm** — synthetic Nightshift transcript, no Village dump required
-- **Load Village demo** — three post-Alibi weeks already in Zetaris (`HANDOFF.promises`)
-- **Investigate** — paste or attach JSONL/CSV (`speaker`, `content`, optional `created_at` / `goal`). Handoff registers a FILESTORE table, then scores promises over Lightning REST
+```bash
+python -m handoff.app
+```
+
+Product site (Vite):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://127.0.0.1:5173 — landing. Desk: http://127.0.0.1:5173/desk. Vite proxies `/api` to the FastAPI process on :8787.
+
+- **Load ops swarm / coding log** — Nightshift or a Cursor-shaped PR transcript (extra keys ignored)
+- **Investigate** — why the swarm stalled (Track 02)
+- **Build task** — instruction + episode + verifier; seller list price, Handoff takes 20%. Secrets (`hf_`, `sk-`, `.env`) are refused
+- **Village research** — three post-Alibi weeks in Zetaris. Not a task. Not for sale.
 
 Verdicts: kept, dropped, unclaimed, duplicate.
 
@@ -19,14 +36,14 @@ Verdicts: kept, dropped, unclaimed, duplicate.
 
 Week timeline, competitor notes, and the catalog / OpenEnv POC: [ROADMAP.md](ROADMAP.md).
 
-**Catalog (demo):** seller sets a list price; Handoff takes 20%. Nightshift only. Village is never listed.
+**Catalog:** listed **tasks**, not dumps. Seller sets list price; Handoff takes 20%. Village is never listed.
 
 ```bash
-python -m handoff.env_export
+python -m handoff.task
 python -m handoff.mcp_server
 ```
 
-Cursor MCP: copy [mcp.example.json](mcp.example.json) into your MCP config (`cwd` must be this repo).
+Cursor MCP: this repo’s `.cursor/mcp.json`, or copy [mcp.example.json](mcp.example.json). Primary tool: `handoff_build_task`.
 
 Ask: *why did the swarm stall on goal X?*
 
