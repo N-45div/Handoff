@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
-from handoff.goals import parse_ts
+from handoff.goals import SLICES, parse_ts
+
+KNOWN_SLUGS = {s["slug"] for s in SLICES}
+KNOWN_TITLES = {s["title"] for s in SLICES}
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-", re.I)
 from handoff.patterns import ACCEPT_RE, COMMIT_RE, REQUEST_RE
 from handoff.zetaris import run_sql
 
@@ -139,6 +144,7 @@ def score(rows: list[dict]) -> list[dict]:
 
 def _verdict(label: str, e: dict, slug: str, evidence: dict | None) -> dict:
     return {
+        "id": e.get("id"),
         "verdict": label,
         "kind": e.get("kind"),
         "why": WHY[label],
@@ -178,6 +184,11 @@ def pack(table: str, rows: list[dict], verdicts: list[dict], name: str) -> dict:
             }
         )
     weeks.sort(key=lambda w: w["open"], reverse=True)
+    weeks = _filter_weeks(weeks)
+    keep = {w["slug"] for w in weeks}
+    if keep:
+        verdicts = [v for v in verdicts if v.get("slice") in keep]
+        counts = Counter(v["verdict"] for v in verdicts)
     return {
         "name": name,
         "source": table,
@@ -197,6 +208,64 @@ def pack(table: str, rows: list[dict], verdicts: list[dict], name: str) -> dict:
     }
 
 
+def investigate_text(raw: str, swarm: str) -> dict:
+    """Score a pasted transcript. Prefer Zetaris FILESTORE; fall back to memory."""
+    from handoff.improve import pack_improve
+    from handoff.ingest import ingest_text, normalize
+
+    try:
+        meta = ingest_text(raw, swarm)
+        blob = investigate_table(meta["table"], swarm)
+        blob["ingested"] = meta
+        return pack_improve(blob)
+    except ValueError:
+        raise
+    except Exception as e:
+        rows = normalize(raw, swarm)
+        blob = pack("memory", rows, score(rows), swarm)
+        blob["warning"] = f"Zetaris register failed, scored in memory: {str(e)[:240]}"
+        blob["engine"] = "memory-fallback"
+        return pack_improve(blob)
+
+
+def _filter_weeks(weeks: list[dict]) -> list[dict]:
+    """Drop CSV-split junk buckets (UUIDs, one-off fragments). Keep named Village weeks."""
+    known = [
+        w
+        for w in weeks
+        if w.get("slug") in KNOWN_SLUGS or w.get("title") in KNOWN_TITLES
+    ]
+    if known:
+        return known
+    clean = []
+    for w in weeks:
+        slug = str(w.get("slug") or "")
+        title = str(w.get("title") or "")
+        n = sum((w.get("counts") or {}).values())
+        if UUID_RE.match(slug) or UUID_RE.match(title):
+            continue
+        if n < 3:
+            continue
+        if len(slug) > 64 or "\n" in slug:
+            continue
+        clean.append(w)
+    return clean or weeks
+
+
+def open_promises(blob: dict, limit: int = 40) -> list[dict]:
+    rows = [
+        v
+        for v in blob.get("verdicts") or []
+        if v.get("verdict") in ("dropped", "unclaimed")
+    ]
+    known = KNOWN_SLUGS
+    if any(v.get("slice") in known for v in rows):
+        rows = [v for v in rows if v.get("slice") in known]
+    return rows[:limit]
+
+
 def investigate_table(table: str, name: str) -> dict:
+    from handoff.improve import pack_improve
+
     rows = fetch_rows(table)
-    return pack(table, rows, score(rows), name)
+    return pack_improve(pack(table, rows, score(rows), name))
