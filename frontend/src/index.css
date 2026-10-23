@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #09090b;
+  color: #fafafa;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #fafafa;
+  color: #09090b;
+}
+
+.btn-ghost {
+  border: 1px solid #3f3f46;
+  background: transparent;
+  color: #e4e4e7;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-solid {
+  border: 1px solid #fafafa;
+  background: #fafafa;
+  color: #09090b;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-ghost:disabled,
+.btn-solid:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.badge {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.badge.kept {
+  color: #4ade80;
+}
+.badge.dropped {
+  color: #f87171;
+}
+.badge.unclaimed {
+  color: #fbbf24;
+}
+.badge.duplicate {
+  color: #93c5fd;
+}
