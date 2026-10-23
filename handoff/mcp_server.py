@@ -1,4 +1,4 @@
-"""stdio MCP for Handoff. JSON-RPC with Content-Length framing."""
+"""stdio MCP: Handoff is the agent that builds tasks from transcripts."""
 
 from __future__ import annotations
 
@@ -7,19 +7,38 @@ import sys
 from pathlib import Path
 
 from handoff.catalog import load_listings, quote, set_price
-from handoff.env_export import episode, write_nightshift
 from handoff.improve import suggestions
-from handoff.ingest import normalize
 from handoff.score import investigate_table, investigate_text, open_promises
+from handoff.secrets import SecretLeak
+from handoff.task import build_task
 from handoff.zetaris import run_sql
 
 LAST: dict | None = None
-LAST_ROWS: list = []
+LAST_RAW = ""
+LAST_NAME = "swarm"
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def _tools() -> list[dict]:
     return [
+        {
+            "name": "handoff_build_task",
+            "description": (
+                "Turn a raw swarm or coding-agent transcript into a lab task: "
+                "instruction, OpenEnv episode, promise verifier, 20% take if listed. "
+                "Village dumps are refused. Secrets (hf_, sk-, .env) are refused."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "swarm": {"type": "string"},
+                    "body": {"type": "string"},
+                    "path": {"type": "string"},
+                    "list_price_usd": {"type": "number"},
+                    "source": {"type": "string", "enum": ["body", "last", "nightshift", "coding"]},
+                },
+            },
+        },
         {
             "name": "handoff_health",
             "description": "Ping Zetaris Lightning SQL.",
@@ -27,7 +46,7 @@ def _tools() -> list[dict]:
         },
         {
             "name": "handoff_investigate",
-            "description": "Score a swarm transcript (speaker + content JSONL/CSV).",
+            "description": "Score promises in a transcript (why the swarm stalled). Does not list a task.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -49,7 +68,7 @@ def _tools() -> list[dict]:
         },
         {
             "name": "handoff_catalog",
-            "description": "Demo listings with seller list price and 20% Handoff take. Village is never listed.",
+            "description": "Listed tasks. Seller list price, 20% Handoff take. Village is never listed.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -59,16 +78,8 @@ def _tools() -> list[dict]:
             },
         },
         {
-            "name": "handoff_export_env",
-            "description": "OpenEnv-shaped episode JSON (handoff-reward@0.1) from Nightshift or last investigation.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {"source": {"type": "string", "enum": ["nightshift", "last"]}},
-            },
-        },
-        {
             "name": "handoff_demo",
-            "description": "Village three-week demo already in Zetaris. Not for sale.",
+            "description": "Village three-week demo in Zetaris. Research only. Not a task. Not for sale.",
             "inputSchema": {"type": "object", "properties": {}},
         },
     ]
@@ -78,8 +89,36 @@ def _text(obj) -> dict:
     return {"content": [{"type": "text", "text": json.dumps(obj, indent=2)[:24000]}]}
 
 
+def _slim_task(task: dict) -> dict:
+    ep = task.get("episode") or {}
+    return {
+        k: task[k]
+        for k in (
+            "kind",
+            "version",
+            "title",
+            "prompt",
+            "why",
+            "license",
+            "for_sale",
+            "pricing",
+            "counts",
+            "verifier",
+            "improve",
+        )
+        if k in task
+    } | {
+        "episode": {
+            "env": ep.get("env"),
+            "reward_spec": ep.get("reward_spec"),
+            "terminal_reward": ep.get("terminal_reward"),
+            "steps": len(ep.get("steps") or []),
+        }
+    }
+
+
 def _call(name: str, args: dict) -> dict:
-    global LAST, LAST_ROWS
+    global LAST, LAST_RAW, LAST_NAME
     args = args or {}
     if name == "handoff_health":
         try:
@@ -87,6 +126,34 @@ def _call(name: str, args: dict) -> dict:
             return _text({"ok": True, "zetaris": True, "select1": ping})
         except Exception as e:
             return _text({"ok": False, "zetaris": False, "error": str(e)[:300]})
+    if name == "handoff_build_task":
+        source = args.get("source") or "body"
+        body = args.get("body") or ""
+        path = args.get("path")
+        swarm = args.get("swarm") or LAST_NAME or "swarm"
+        if path:
+            body = Path(path).read_text(encoding="utf-8")
+        elif source == "last":
+            body = LAST_RAW
+            swarm = LAST_NAME
+        elif source == "nightshift" or not str(body).strip():
+            if source == "coding":
+                body = (ROOT / "fixtures" / "cursor-pr.jsonl").read_text(encoding="utf-8")
+                swarm = args.get("swarm") or "Cursor PR 441"
+            else:
+                body = (ROOT / "fixtures" / "nightshift-swarm.jsonl").read_text(encoding="utf-8")
+                swarm = args.get("swarm") or "Nightshift"
+        elif source == "coding":
+            body = (ROOT / "fixtures" / "cursor-pr.jsonl").read_text(encoding="utf-8")
+            swarm = args.get("swarm") or "Cursor PR 441"
+        try:
+            task = build_task(body, swarm, list_price_usd=float(args.get("list_price_usd") or 50))
+        except SecretLeak as e:
+            return {"content": [{"type": "text", "text": str(e)}], "isError": True}
+        LAST_RAW = body
+        LAST_NAME = swarm
+        LAST = {"verdicts": (task.get("verifier") or {}).get("rubric"), "improve": task.get("improve"), "name": swarm}
+        return _text(_slim_task(task))
     if name == "handoff_investigate":
         body = args.get("body") or ""
         path = args.get("path")
@@ -95,7 +162,8 @@ def _call(name: str, args: dict) -> dict:
         if not str(body).strip():
             body = (ROOT / "fixtures" / "nightshift-swarm.jsonl").read_text(encoding="utf-8")
         swarm = args.get("swarm") or "swarm"
-        LAST_ROWS = normalize(body, swarm)
+        LAST_RAW = body
+        LAST_NAME = swarm
         LAST = investigate_text(body, swarm)
         slim = {k: LAST[k] for k in LAST if k != "verdicts"}
         slim["verdicts"] = (LAST.get("verdicts") or [])[:20]
@@ -109,6 +177,7 @@ def _call(name: str, args: dict) -> dict:
                 "counts": LAST.get("counts"),
                 "weeks": LAST.get("weeks"),
                 "for_sale": False,
+                "task_blocked": "Village is research-only. Not a listed task.",
                 "improve": LAST.get("improve"),
             }
         )
@@ -121,15 +190,7 @@ def _call(name: str, args: dict) -> dict:
     if name == "handoff_catalog":
         if args.get("id") and args.get("list_price_usd") is not None:
             return _text(set_price(str(args["id"]), float(args["list_price_usd"])))
-        return _text({"listings": load_listings(), "quote_example": quote(50)})
-    if name == "handoff_export_env":
-        source = args.get("source") or "nightshift"
-        if source == "last" and LAST and LAST_ROWS:
-            blob = episode(LAST_ROWS, LAST.get("verdicts") or [], LAST.get("name") or "swarm")
-            return _text(blob)
-        path = write_nightshift()
-        blob = json.loads(path.read_text(encoding="utf-8"))
-        return _text({"path": str(path), "terminal_reward": blob.get("terminal_reward"), "steps": len(blob.get("steps") or [])})
+        return _text({"kind": "handoff-task", "listings": load_listings(), "quote_example": quote(50)})
     return _text({"error": f"unknown tool {name}"})
 
 
@@ -143,13 +204,20 @@ def _handle(msg: dict) -> dict | None:
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "handoff", "version": "0.2.0"},
+                "serverInfo": {"name": "handoff", "version": "0.3.0"},
+                "instructions": (
+                    "Handoff builds tasks from agent transcripts. "
+                    "Call handoff_build_task. Do not list Village data."
+                ),
             },
         }
-    if method == "notifications/initialized" or method is None:
+    if method in ("notifications/initialized", "notifications/cancelled") or method is None:
         return None
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": _tools()}}
+    if method in ("resources/list", "prompts/list"):
+        key = "resources" if method.startswith("resources") else "prompts"
+        return {"jsonrpc": "2.0", "id": mid, "result": {key: []}}
     if method == "tools/call":
         params = msg.get("params") or {}
         try:
@@ -169,15 +237,20 @@ def _handle(msg: dict) -> dict | None:
 
 
 def _read() -> dict | None:
+    first = sys.stdin.buffer.readline()
+    if not first:
+        return None
+    if first.lstrip().startswith(b"{"):
+        return json.loads(first.decode("utf-8"))
     headers: dict[str, str] = {}
+    key, _, val = first.decode("utf-8").partition(":")
+    headers[key.strip().lower()] = val.strip()
     while True:
         line = sys.stdin.buffer.readline()
-        if not line:
-            return None
-        if line in (b"\r\n", b"\n"):
+        if not line or line in (b"\r\n", b"\n"):
             break
-        key, _, val = line.decode("utf-8").partition(":")
-        headers[key.strip().lower()] = val.strip()
+        k, _, v = line.decode("utf-8").partition(":")
+        headers[k.strip().lower()] = v.strip()
     n = int(headers.get("content-length") or "0")
     if n <= 0:
         return None

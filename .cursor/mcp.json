@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "handoff": {
+      "command": "C:\\Users\\DivijN\\Handoff\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "handoff.mcp_server"],
+      "cwd": "C:\\Users\\DivijN\\Handoff"
+    }
+  }
+}
