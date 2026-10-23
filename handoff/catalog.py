@@ -28,14 +28,24 @@ def _default_listings() -> list[dict]:
     return [
         {
             "id": "nightshift-handoff-demo",
-            "title": "Nightshift deploy swarm (synthetic)",
+            "title": "Nightshift deploy — keep every ops promise",
             "seller": "handoff-demo",
             "list_price_usd": 50,
             "license": "demo-not-for-training",
             "source": "fixtures/nightshift-swarm.jsonl",
-            "episode": "fixtures/openenv/nightshift-episode.json",
-            "notes": "Fixture swarm. Not Village. Not for model training.",
-        }
+            "task": "fixtures/tasks/nightshift-swarm-task.json",
+            "notes": "Synthetic swarm task. Not Village. Not for model training.",
+        },
+        {
+            "id": "cursor-pr-441-demo",
+            "title": "Cursor PR 441 — auth tests as a task",
+            "seller": "handoff-demo",
+            "list_price_usd": 75,
+            "license": "demo-not-for-training",
+            "source": "fixtures/cursor-pr.jsonl",
+            "task": "fixtures/tasks/cursor-pr-task.json",
+            "notes": "Coding-agent shaped log (extra keys ignored). Not Village. Not for training.",
+        },
     ]
 
 
@@ -59,7 +69,7 @@ def enrich(listing: dict) -> dict:
 
 
 def _canon(listing: dict) -> dict:
-    keys = ("id", "title", "seller", "list_price_usd", "license", "source", "episode", "notes")
+    keys = ("id", "title", "seller", "list_price_usd", "license", "source", "task", "episode", "notes")
     return {k: listing.get(k) for k in keys}
 
 

@@ -1,0 +1,255 @@
+{
+  "kind": "handoff-task",
+  "version": "0.1",
+  "title": "Nightshift",
+  "prompt": "You are in swarm 'Nightshift'. Opening line: Nightshift deploy is ours. Can you take the health checks, Mira? Keep every agent-to-agent promise you make or accept. A dropped or unclaimed promise fails the task (3 open on this gold episode). Duplicate restates score -0.5.",
+  "why": "Labs train on tasks, not dumps. Handoff grades promises in the transcript and that grade is the verifier.",
+  "license": "demo-not-for-training",
+  "for_sale": true,
+  "pricing": {
+    "list_price_usd": 50.0,
+    "take_rate": 0.2,
+    "platform_take_usd": 10.0,
+    "seller_payout_usd": 40.0
+  },
+  "counts": {
+    "rows": 9,
+    "promises": 8,
+    "kept": 4,
+    "dropped": 1,
+    "unclaimed": 2,
+    "duplicate": 1
+  },
+  "verifier": {
+    "spec": "handoff-reward@0.1",
+    "pass_if": "no dropped or unclaimed promises",
+    "passed": false,
+    "open": 3,
+    "rubric": [
+      {
+        "id": "nightshift-1",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "Nightshift deploy is ours. Can you take the health checks, Mira?",
+        "from": "Atlas"
+      },
+      {
+        "id": "nightshift-2",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "On it. I'll wire the /ready probe and post the result here.",
+        "from": "Mira"
+      },
+      {
+        "id": "nightshift-4",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "I'll cut the production traffic shift at 10:00. Leave it with me.",
+        "from": "Atlas"
+      },
+      {
+        "id": "nightshift-5",
+        "must": "kept",
+        "got": "duplicate",
+        "reward": -0.5,
+        "quote": "I'll cut the production traffic shift at 10:00. Leave it with me.",
+        "from": "Atlas"
+      },
+      {
+        "id": "nightshift-6",
+        "must": "kept",
+        "got": "unclaimed",
+        "reward": 0.0,
+        "quote": "Could you send the rollback runbook to #ops, Atlas?",
+        "from": "Reed"
+      },
+      {
+        "id": "nightshift-7",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "I can draft customer status copy if nobody else has it.",
+        "from": "Nova"
+      },
+      {
+        "id": "nightshift-8",
+        "must": "kept",
+        "got": "unclaimed",
+        "reward": 0.0,
+        "quote": "Status copy is in the thread. Mira, please handle the screenshot for the incident doc.",
+        "from": "Nova"
+      },
+      {
+        "id": "nightshift-9",
+        "must": "kept",
+        "got": "dropped",
+        "reward": -1.0,
+        "quote": "Still writing the traffic-shift notes. I will post the cutover receipt after lunch.",
+        "from": "Atlas"
+      }
+    ]
+  },
+  "improve": [
+    {
+      "verdict": "dropped",
+      "from": "Atlas",
+      "quote": "Still writing the traffic-shift notes. I will post the cutover receipt after lunch.",
+      "change": "Do not leave a commit without a later turn from the same agent in that window."
+    },
+    {
+      "verdict": "unclaimed",
+      "from": "Reed",
+      "quote": "Could you send the rollback runbook to #ops, Atlas?",
+      "change": "A request needs an accept in-thread (or an explicit decline) within a few hours."
+    },
+    {
+      "verdict": "unclaimed",
+      "from": "Nova",
+      "quote": "Status copy is in the thread. Mira, please handle the screenshot for the incident doc.",
+      "change": "A request needs an accept in-thread (or an explicit decline) within a few hours."
+    },
+    {
+      "verdict": "duplicate",
+      "from": "Atlas",
+      "quote": "I'll cut the production traffic shift at 10:00. Leave it with me.",
+      "change": "Restating the same commit is noise; point at the open promise instead."
+    }
+  ],
+  "episode": {
+    "env": "handoff-Nightshift",
+    "reward_spec": "handoff-reward@0.1",
+    "license": "demo-not-for-training",
+    "village_forbidden": true,
+    "reset": {
+      "observation": {
+        "speaker": "Atlas",
+        "content": "Nightshift deploy is ours. Can you take the health checks, Mira?"
+      }
+    },
+    "steps": [
+      {
+        "action": {
+          "speaker": "Atlas",
+          "content": "Nightshift deploy is ours. Can you take the health checks, Mira?"
+        },
+        "observation": {
+          "speaker": "Mira",
+          "content": "On it. I'll wire the /ready probe and post the result here."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Mira",
+          "content": "On it. I'll wire the /ready probe and post the result here."
+        },
+        "observation": {
+          "speaker": "Mira",
+          "content": "Probe is green on staging. Logs look clean after the restart."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Mira",
+          "content": "Probe is green on staging. Logs look clean after the restart."
+        },
+        "observation": {
+          "speaker": "Atlas",
+          "content": "I'll cut the production traffic shift at 10:00. Leave it with me."
+        },
+        "reward": 0.0,
+        "verdict": null,
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Atlas",
+          "content": "I'll cut the production traffic shift at 10:00. Leave it with me."
+        },
+        "observation": {
+          "speaker": "Atlas",
+          "content": "I'll cut the production traffic shift at 10:00. Leave it with me."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Atlas",
+          "content": "I'll cut the production traffic shift at 10:00. Leave it with me."
+        },
+        "observation": {
+          "speaker": "Reed",
+          "content": "Could you send the rollback runbook to #ops, Atlas?"
+        },
+        "reward": -0.5,
+        "verdict": "duplicate",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Reed",
+          "content": "Could you send the rollback runbook to #ops, Atlas?"
+        },
+        "observation": {
+          "speaker": "Nova",
+          "content": "I can draft customer status copy if nobody else has it."
+        },
+        "reward": 0.0,
+        "verdict": "unclaimed",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Nova",
+          "content": "I can draft customer status copy if nobody else has it."
+        },
+        "observation": {
+          "speaker": "Nova",
+          "content": "Status copy is in the thread. Mira, please handle the screenshot for the incident doc."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Nova",
+          "content": "Status copy is in the thread. Mira, please handle the screenshot for the incident doc."
+        },
+        "observation": {
+          "speaker": "Atlas",
+          "content": "Still writing the traffic-shift notes. I will post the cutover receipt after lunch."
+        },
+        "reward": 0.0,
+        "verdict": "unclaimed",
+        "done": true
+      },
+      {
+        "action": {
+          "speaker": "Atlas",
+          "content": "Still writing the traffic-shift notes. I will post the cutover receipt after lunch."
+        },
+        "observation": {
+          "speaker": null,
+          "content": null
+        },
+        "reward": -1.0,
+        "verdict": "dropped",
+        "done": true
+      }
+    ],
+    "terminal_reward": 2.5,
+    "promises": 8
+  },
+  "village_forbidden": true
+}

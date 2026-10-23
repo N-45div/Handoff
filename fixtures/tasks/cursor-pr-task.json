@@ -1,0 +1,207 @@
+{
+  "kind": "handoff-task",
+  "version": "0.1",
+  "title": "Cursor PR 441",
+  "prompt": "You are in swarm 'Cursor PR 441'. Opening line: PR 441 needs auth tests. Can you take the login path, Codex? Keep every agent-to-agent promise you make or accept. A dropped or unclaimed promise fails the task (2 open on this gold episode). Duplicate restates score -0.5.",
+  "why": "Labs train on tasks, not dumps. Handoff grades promises in the transcript and that grade is the verifier.",
+  "license": "demo-not-for-training",
+  "for_sale": true,
+  "pricing": {
+    "list_price_usd": 50.0,
+    "take_rate": 0.2,
+    "platform_take_usd": 10.0,
+    "seller_payout_usd": 40.0
+  },
+  "counts": {
+    "rows": 7,
+    "promises": 6,
+    "kept": 3,
+    "dropped": 0,
+    "unclaimed": 2,
+    "duplicate": 1
+  },
+  "verifier": {
+    "spec": "handoff-reward@0.1",
+    "pass_if": "no dropped or unclaimed promises",
+    "passed": false,
+    "open": 2,
+    "rubric": [
+      {
+        "id": "cursor_pr_441-1",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "PR 441 needs auth tests. Can you take the login path, Codex?",
+        "from": "Priya"
+      },
+      {
+        "id": "cursor_pr_441-2",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "On it. I'll add tests/test_login.py and post the pytest log.",
+        "from": "Codex"
+      },
+      {
+        "id": "cursor_pr_441-4",
+        "must": "kept",
+        "got": "unclaimed",
+        "reward": 0.0,
+        "quote": "Could you send the coverage report to #eng, Codex?",
+        "from": "Priya"
+      },
+      {
+        "id": "cursor_pr_441-5",
+        "must": "kept",
+        "got": "kept",
+        "reward": 1.0,
+        "quote": "I'll write the coverage report after lunch.",
+        "from": "Codex"
+      },
+      {
+        "id": "cursor_pr_441-6",
+        "must": "kept",
+        "got": "duplicate",
+        "reward": -0.5,
+        "quote": "I'll write the coverage report after lunch.",
+        "from": "Codex"
+      },
+      {
+        "id": "cursor_pr_441-7",
+        "must": "kept",
+        "got": "unclaimed",
+        "reward": 0.0,
+        "quote": "Please handle the screenshot for the PR description, Mira.",
+        "from": "Jules"
+      }
+    ]
+  },
+  "improve": [
+    {
+      "verdict": "unclaimed",
+      "from": "Priya",
+      "quote": "Could you send the coverage report to #eng, Codex?",
+      "change": "A request needs an accept in-thread (or an explicit decline) within a few hours."
+    },
+    {
+      "verdict": "unclaimed",
+      "from": "Jules",
+      "quote": "Please handle the screenshot for the PR description, Mira.",
+      "change": "A request needs an accept in-thread (or an explicit decline) within a few hours."
+    },
+    {
+      "verdict": "duplicate",
+      "from": "Codex",
+      "quote": "I'll write the coverage report after lunch.",
+      "change": "Restating the same commit is noise; point at the open promise instead."
+    }
+  ],
+  "episode": {
+    "env": "handoff-Cursor PR 441",
+    "reward_spec": "handoff-reward@0.1",
+    "license": "demo-not-for-training",
+    "village_forbidden": true,
+    "reset": {
+      "observation": {
+        "speaker": "Priya",
+        "content": "PR 441 needs auth tests. Can you take the login path, Codex?"
+      }
+    },
+    "steps": [
+      {
+        "action": {
+          "speaker": "Priya",
+          "content": "PR 441 needs auth tests. Can you take the login path, Codex?"
+        },
+        "observation": {
+          "speaker": "Codex",
+          "content": "On it. I'll add tests/test_login.py and post the pytest log."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Codex",
+          "content": "On it. I'll add tests/test_login.py and post the pytest log."
+        },
+        "observation": {
+          "speaker": "Codex",
+          "content": "Pytest is green on tests/test_login.py. Logs are in the thread."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Codex",
+          "content": "Pytest is green on tests/test_login.py. Logs are in the thread."
+        },
+        "observation": {
+          "speaker": "Priya",
+          "content": "Could you send the coverage report to #eng, Codex?"
+        },
+        "reward": 0.0,
+        "verdict": null,
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Priya",
+          "content": "Could you send the coverage report to #eng, Codex?"
+        },
+        "observation": {
+          "speaker": "Codex",
+          "content": "I'll write the coverage report after lunch."
+        },
+        "reward": 0.0,
+        "verdict": "unclaimed",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Codex",
+          "content": "I'll write the coverage report after lunch."
+        },
+        "observation": {
+          "speaker": "Codex",
+          "content": "I'll write the coverage report after lunch."
+        },
+        "reward": 1.0,
+        "verdict": "kept",
+        "done": false
+      },
+      {
+        "action": {
+          "speaker": "Codex",
+          "content": "I'll write the coverage report after lunch."
+        },
+        "observation": {
+          "speaker": "Jules",
+          "content": "Please handle the screenshot for the PR description, Mira."
+        },
+        "reward": -0.5,
+        "verdict": "duplicate",
+        "done": true
+      },
+      {
+        "action": {
+          "speaker": "Jules",
+          "content": "Please handle the screenshot for the PR description, Mira."
+        },
+        "observation": {
+          "speaker": null,
+          "content": null
+        },
+        "reward": 0.0,
+        "verdict": "unclaimed",
+        "done": true
+      }
+    ],
+    "terminal_reward": 2.5,
+    "promises": 6
+  },
+  "village_forbidden": true
+}
