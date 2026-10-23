@@ -29,12 +29,45 @@ def ident(name: str) -> str:
     return slug[:40].lower()
 
 
+def _text_of(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return " ".join(_text_of(part) for part in value).strip()
+    if isinstance(value, dict):
+        if value.get("text") or value.get("content"):
+            return _text_of(value.get("text") or value.get("content"))
+        if value.get("type") == "tool_use":
+            return f"I'll use {value.get('name') or 'a tool'}."
+    return ""
+
+
+def flatten_row(src: dict) -> dict:
+    """Coding-agent exports (Cursor / Claude Code) add extra keys. Keep speaker+content."""
+    row = dict(src)
+    msg = row.get("message")
+    if isinstance(msg, dict):
+        row.setdefault("role", msg.get("role"))
+        if not row.get("content"):
+            row["content"] = msg.get("content")
+        if not row.get("speaker"):
+            row["speaker"] = msg.get("speaker") or msg.get("name")
+    row["content"] = _text_of(row.get("content") or row.get("text") or row.get("message"))
+    if not row["content"] and row.get("type") == "tool_use":
+        row["content"] = f"I'll use {row.get('name') or 'a tool'}."
+        row.setdefault("role", "assistant")
+    return row
+
+
 def _pick(row: dict, keys: tuple[str, ...]) -> str:
     lower = {str(k).lower(): v for k, v in row.items()}
     for k in keys:
         v = lower.get(k)
-        if v is not None and str(v).strip():
-            return str(v).strip()
+        text = _text_of(v)
+        if text:
+            return text
     return ""
 
 
@@ -50,7 +83,7 @@ def parse_export(raw: str) -> list[dict]:
                 blob = blob.get("messages") or blob.get("rows") or [blob]
             for item in blob:
                 if isinstance(item, dict):
-                    rows.append(item)
+                    rows.append(flatten_row(item))
             return rows
         except json.JSONDecodeError:
             pass
@@ -63,11 +96,11 @@ def parse_export(raw: str) -> list[dict]:
             except json.JSONDecodeError:
                 continue
             if isinstance(item, dict):
-                rows.append(item)
+                rows.append(flatten_row(item))
         if rows:
             return rows
     reader = csv.DictReader(StringIO(text))
-    return [dict(r) for r in reader]
+    return [flatten_row(dict(r)) for r in reader]
 
 
 def normalize(raw: str, swarm_name: str) -> list[dict]:

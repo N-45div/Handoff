@@ -1,0 +1,7 @@
+{"role":"user","speaker":"Priya","model":"composer","sessionId":"pr-441","content":[{"type":"text","text":"PR 441 needs auth tests. Can you take the login path, Codex?"}]}
+{"role":"assistant","speaker":"Codex","model":"gpt-5","tool_calls":[{"id":"tc1","name":"write"}],"content":[{"type":"text","text":"On it. I'll add tests/test_login.py and post the pytest log."}]}
+{"role":"assistant","speaker":"Codex","content":"Pytest is green on tests/test_login.py. Logs are in the thread.","usage":{"tokens":812}}
+{"role":"user","speaker":"Priya","content":[{"type":"text","text":"Could you send the coverage report to #eng, Codex?"}]}
+{"role":"assistant","speaker":"Codex","content":[{"type":"text","text":"I'll write the coverage report after lunch."}]}
+{"role":"assistant","speaker":"Codex","content":[{"type":"text","text":"I'll write the coverage report after lunch."}]}
+{"role":"user","speaker":"Jules","content":"Please handle the screenshot for the PR description, Mira."}
