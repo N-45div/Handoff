@@ -10,26 +10,27 @@ Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your
 
 | | Promises | Share |
 |---|---:|---:|
-| Kept: the work shows in the agent's own log within 24 hours | 275 | 44% |
-| Partial: started, not finished | 172 | 28% |
-| Not done: no action toward it in the next 24 hours | 153 | 25% |
-| Unclear: the proof would only be on screen | 24 | 4% |
-| **Total** | **624** | |
+| Kept: the work shows in the agent's own log within 24 hours | 344 | 54% |
+| Partial: started, not finished | 121 | 19% |
+| Not done: no action toward it in the next 24 hours | 143 | 22% |
+| Unclear: the proof would only be on screen | 31 | 5% |
+| **Total** | **639** | |
 
 - Read from chat alone (did the agent say anything afterwards?), 95% of the 1,933 promise-like lines look kept.
-- Kept rates by agent (20 or more promises each) range from 54% for Gemini 3.1 Pro to 33% for GPT-5.1.
-- How the 624 were found: 1,582 first-person lines ("I'll", "let me", "on it") became 870 concrete commitments. Then 246 were removed because the task belonged to another agent; in a spot check of 8 removals, 1 was a real promise.
-- Every "not done" verdict was judged a second time with up to 60 actions instead of 14. That changed 88 of 235. Before this second look, a 60-promise sample showed about 1 in 4 "not done" verdicts were evidence the first pass had not seen.
+- Kept rates by agent (20 or more promises each) range from 68% for Claude Opus 4.8 to 38% for GPT-5.1.
+- The common failure: agents do the preparatory steps (clone, edit, draft) and stop before the verifiable deliverable, such as the link, the merge request or the named file.
+- How the 639 were found: 1,582 first-person lines ("I'll", "let me", "on it") became 895 concrete commitments. Then 256 were removed because Nemotron judged that the task belonged to another agent.
+- Every "not done" verdict was judged a second time with up to 60 actions instead of 14. That changed 73 of 215. An earlier 60-promise sample showed about 1 in 4 "not done" verdicts were evidence a narrow first pass had not seen, which is why the second look exists.
 
 ## How it works
 
 1. **One query layer.** The gated Village tables stream once into Parquet files in Zetaris's file store. Zetaris Lightning SQL reads them as `HANDOFF.promises` (chat), `HANDOFF.cu_turns` (computer actions), `HANDOFF.memories` (memory notes) and `HANDOFF.verdicts`. Every read in the app goes through Zetaris.
-2. **Find promises.** A first-person pattern picks candidate lines. Nemotron 3.5 Lightning (thinking off) names the concrete task. Nemotron 3 Super checks that the speaker owns the task, not another agent.
-3. **Judge against actions.** For each promise, Handoff takes the agent's executed actions and later chat for the next 24 hours, ranks them against the task, and asks Nemotron 3 Super for kept, partial, not done or unclear, citing action ids. Only executed actions and tool output count. The agent's narration is shown as context and never proves anything. Every "not done" gets a second, wider look.
+2. **Find promises.** A first-person pattern picks candidate lines. Nemotron 3.5 Lightning (thinking off) names the concrete task. Nemotron 3 Ultra checks that the speaker owns the task, not another agent, before any judging.
+3. **Judge against actions.** For each promise, Handoff takes the agent's executed actions and later chat for the next 24 hours, ranks them against the task, and asks Nemotron 3 Ultra for kept, partial, not done or unclear, citing action ids. Only executed actions and tool output count. The agent's narration is shown as context and never proves anything. Every "not done" gets a second, wider look.
 4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history.
-5. **Explain.** Nemotron 3 Super writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
+5. **Explain.** Nemotron 3 Ultra writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
 
-Every model call goes through `handoff/llm.py`, which records the route and model on each verdict. Steps run on NVIDIA Nemotron hosted by Nebius by default. Set `HANDOFF_<STEP>_ROUTE=meterless` to send a step through the Meterless Runtime (Nightshift) instead.
+Every model call goes through `handoff/llm.py` to the **Meterless Runtime** (Nightshift), which routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt; each verdict keeps its receipt id. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published run, 238 of the 639 final verdicts carry a Meterless receipt; the other 401 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
 
 ## The desk
 
@@ -37,12 +38,12 @@ Every model call goes through `handoff/llm.py`, which records the route and mode
 
 ## Run it
 
-You need Python 3.12, Node 20+, Docker Desktop, a local Zetaris install ([getting started](https://github.com/zetaris/getting-started)), Hugging Face access to the gated [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village), and a Nebius Token Factory key.
+You need Python 3.12, Node 20+, Docker Desktop, a local Zetaris install ([getting started](https://github.com/zetaris/getting-started)), Hugging Face access to the gated [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village), and [Nightshift](https://meterless.ai/) with an NVIDIA key (build.nvidia.com) added under Setup, Providers. A Nebius Token Factory key is optional, for the fallback.
 
 ```bash
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-copy .env.example .env.local        # HF_TOKEN, ZETARIS_*, NEBIUS_API_KEY
+copy .env.example .env.local        # HF_TOKEN, ZETARIS_*, METERLESS_TOKEN, optional NEBIUS_API_KEY
 
 # 1. Slice the three weeks and register them in Zetaris
 python -m handoff.fetch catalog
@@ -54,8 +55,7 @@ python -m handoff.memories          # streams 2.5 GB once, keeps 15k rows
 python -m handoff.register
 
 # 2. Judge
-python -m handoff.evidence
-python -m handoff.evidence --owner-check
+python -m handoff.evidence          # extract, owner check, judge (resumable)
 python -m handoff.second_look --all
 python -m handoff.evidence --summarize
 
@@ -92,7 +92,7 @@ Village data is never exported as a task.
 - The judge sees the 14 actions that best match the task, or 60 in the second look. Proof elsewhere in the log can be missed.
 - The window is 24 hours, so work done later counts as not done.
 - Screenshots are not read yet. "Unclear" often means the proof was only on screen.
-- The owner check removes some real promises (1 of 8 in a spot check).
+- The owner check also removes some real promises. Its 256 removals have not been reviewed by hand.
 - The pattern only finds first-person phrasing. Promises worded another way are not counted.
 - An LLM judge can be wrong. That is why the desk records reviewer corrections in H-MEM instead of hiding them.
 - Whether writing a promise into memory helps keep it was tested and was inconclusive. The notes mention nearly every task, so a keyword match cannot tell a to-do from a passing mention. Handoff does not claim that result.
