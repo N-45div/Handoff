@@ -65,6 +65,7 @@ export function VerdictRow({ v }: { v: Verdict }) {
         <p className="mt-1 font-mono text-[11px] text-zinc-600">
           judged by {v.judge_model.replace("nvidia/", "")}
           {v.receipt_id ? ` via Meterless · receipt ${v.receipt_id}` : ""}
+          {!v.receipt_id && v.judge_route === "nebius-fallback" ? " on Nebius (fallback while NVIDIA rate-limited)" : ""}
         </p>
       )}
       {v.id && (
