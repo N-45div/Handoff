@@ -208,6 +208,24 @@ def pack(table: str, rows: list[dict], verdicts: list[dict], name: str) -> dict:
     }
 
 
+def attach_sponsors(blob: dict) -> dict:
+    """Recall prior stalls, store open promises, then ask Nemotron only about those rows."""
+    from handoff.cache import save_investigation
+    from handoff.hmem import recall, remember_open
+    from handoff.nemotron import listing_blurb, why_paragraph
+
+    prior = recall(blob.get("name"))
+    stored = remember_open(blob)
+    blob["memory"] = {**prior, "stored_now": stored}
+    why = why_paragraph(blob)
+    blob["nemotron"] = why
+    blob["listing_blurb"] = listing_blurb(blob, why)
+    slim = {k: v for k, v in blob.items() if k != "verdicts"}
+    slim["verdicts"] = (blob.get("verdicts") or [])[:40]
+    save_investigation(slim)
+    return blob
+
+
 def investigate_text(raw: str, swarm: str) -> dict:
     """Score a pasted transcript. Prefer Zetaris FILESTORE; fall back to memory."""
     from handoff.improve import pack_improve
@@ -217,7 +235,7 @@ def investigate_text(raw: str, swarm: str) -> dict:
         meta = ingest_text(raw, swarm)
         blob = investigate_table(meta["table"], swarm)
         blob["ingested"] = meta
-        return pack_improve(blob)
+        return attach_sponsors(blob)
     except ValueError:
         raise
     except Exception as e:
@@ -225,7 +243,7 @@ def investigate_text(raw: str, swarm: str) -> dict:
         blob = pack("memory", rows, score(rows), swarm)
         blob["warning"] = f"Zetaris register failed, scored in memory: {str(e)[:240]}"
         blob["engine"] = "memory-fallback"
-        return pack_improve(blob)
+        return attach_sponsors(pack_improve(blob))
 
 
 def _filter_weeks(weeks: list[dict]) -> list[dict]:

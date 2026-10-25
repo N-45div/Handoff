@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from handoff.catalog import load_listings, quote, set_price
 from handoff.env_export import write_nightshift
-from handoff.score import investigate_table, investigate_text
+from handoff.score import attach_sponsors, investigate_table, investigate_text
 from handoff.secrets import SecretLeak
 from handoff.task import build_task
 
@@ -47,20 +47,27 @@ def desk() -> FileResponse:
 
 @app.get("/api/health")
 def health() -> dict:
+    from handoff.nemotron import ping as night_ping
+
+    night = night_ping(timeout=2)
+    out = {
+        "nightshift": bool(night.get("ok")),
+        "nightshift_unauthorized": bool(night.get("unauthorized")),
+        "nightshift_error": night.get("error"),
+    }
     try:
         from handoff.zetaris import run_sql
 
         ping = run_sql("SELECT 1 AS one", limit=1)
-        dbs = run_sql("SHOW LIGHTNING DATABASES", limit=20)
-        return {"ok": True, "zetaris": True, "select1": ping, "databases": dbs}
+        return {"ok": True, "zetaris": True, "select1": ping, **out}
     except Exception as e:
-        return {"ok": False, "zetaris": False, "error": str(e)[:300]}
+        return {"ok": False, "zetaris": False, "error": str(e)[:300], **out}
 
 
 @app.get("/api/demo")
 def demo() -> dict:
     try:
-        blob = investigate_table(DEMO_TABLE, "AI Village — three post-Alibi weeks")
+        blob = attach_sponsors(investigate_table(DEMO_TABLE, "AI Village — three post-Alibi weeks"))
         blob["for_sale"] = False
         blob["task_blocked"] = "Village is research-only. Handoff will not build a listed task from it."
         return blob

@@ -192,6 +192,21 @@ export function Desk() {
               <p className="mt-3 font-mono text-[11px] text-zinc-500">
                 {result.name} · {result.source} · {result.engine}
               </p>
+              {result.nemotron?.why && (
+                <p className="mt-4 border-t border-zinc-800 pt-3 text-sm leading-relaxed text-zinc-200">
+                  {result.nemotron.why}
+                </p>
+              )}
+              {result.nemotron?.skipped && (
+                <p className="mt-4 border-t border-zinc-800 pt-3 text-sm text-amber-300">
+                  {result.nemotron.reason || "Nemotron skipped. The Zetaris score still stands."}
+                </p>
+              )}
+              {result.memory && (
+                <p className="mt-2 font-mono text-[11px] text-zinc-500">
+                  H-MEM stored {result.memory.stored_now ?? 0} open promises · {result.memory.count ?? 0} prior cases
+                </p>
+              )}
             </>
           )}
         </div>

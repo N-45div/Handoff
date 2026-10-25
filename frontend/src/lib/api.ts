@@ -29,6 +29,16 @@ export type Investigate = {
   weeks?: { title: string; open: number; counts: Record<string, number> }[];
   verdicts?: Verdict[];
   improve?: Verdict[];
+  memory?: { stored_now?: number; count?: number; cases?: { verdict?: string; quote?: string; from?: string }[] };
+  nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string };
+  listing_blurb?: { ok?: boolean; text?: string; reason?: string };
+};
+
+export type Health = {
+  zetaris?: boolean;
+  nightshift?: boolean;
+  nightshift_unauthorized?: boolean;
+  nightshift_error?: string;
 };
 
 export type Task = {
@@ -49,7 +59,7 @@ async function readError(res: Response) {
 
 export async function health() {
   const res = await fetch("/api/health");
-  return res.json() as Promise<{ zetaris?: boolean; error?: string }>;
+  return res.json() as Promise<Health>;
 }
 
 export async function catalog() {
