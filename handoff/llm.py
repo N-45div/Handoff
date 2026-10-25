@@ -151,8 +151,32 @@ def _try(base: str, headers: dict, body: dict, route: str, tries: int, pace: boo
     return None, last
 
 
+_LOCAL: dict = {"at": 0.0, "ok": False}
+
+
+def local_ready(max_age: float = 60) -> bool:
+    """True only if Meterless answers meterless/local from a model on this machine.
+    meterless/local falls through to a cloud model when no local lane is up, so a harmless
+    probe's receipt is checked before any private text is sent."""
+    if time.time() - _LOCAL["at"] < max_age:
+        return _LOCAL["ok"]
+    load_env()
+    base, headers = _endpoint()
+    body = {"model": "meterless/local", "messages": [{"role": "user", "content": "Reply with: ok"}], "max_tokens": 4}
+    try:
+        out, _ = _post(base, headers, body)
+        ok = (receipt_of(out) or {}).get("kind") == "local"
+    except OSError:
+        ok = False
+    _LOCAL.update(at=time.time(), ok=ok)
+    return ok
+
+
 def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: float = 0.1) -> dict:
     load_env()
+    if step == "private" and not local_ready():
+        return {"ok": False, "route": "meterless-local", "model": "meterless/local",
+                "error": "No local model is running in Nightshift, so nothing was sent."}
     spec = STEPS[step]
     model = os.environ.get(f"HANDOFF_{step.upper()}_MODEL") or spec["model"]
     body: dict = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
