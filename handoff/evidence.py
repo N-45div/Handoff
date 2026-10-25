@@ -358,6 +358,8 @@ def summarize(final: list[dict]) -> dict:
         "promises": len(final),
         "dropped_not_speakers_task": before - len(final),
         "counts": dict(counts),
+        "judge_routes": dict(Counter(str(r.get("judge_route")) for r in final)),
+        "extract_routes": dict(Counter(str(r.get("extract_route")) for r in final)),
         "second_look": {
             "checked": sum(1 for r in final if r.get("second_look")),
             "changed": sum(1 for r in final if r.get("second_look") and r["verdict"] != r["first_verdict"]),
