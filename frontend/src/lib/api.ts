@@ -30,6 +30,7 @@ export type Receipt = {
   receipt_id?: string;
   routed_model?: string;
   provider?: string;
+  kind?: string;
   ms?: number;
   usage?: { input_tokens?: number; output_tokens?: number };
 };
@@ -61,6 +62,7 @@ export type Investigate = {
   improve?: Verdict[];
   evidence?: boolean;
   agents?: AgentRow[];
+  private?: { ok?: boolean; named?: number; model?: string; kind?: string; receipts?: string[]; reason?: string };
   memory?: { ok?: boolean; engine?: string; reason?: string; stored_now?: number; count?: number; cases?: { verdict?: string; quote?: string; from?: string }[] };
   nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string; model?: string; route?: string; receipt?: Receipt };
   listing_blurb?: { ok?: boolean; text?: string; reason?: string };

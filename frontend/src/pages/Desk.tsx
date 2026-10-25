@@ -182,6 +182,13 @@ export function Desk() {
                 <p className="mt-3 text-sm text-amber-400">{result.task_blocked}</p>
               )}
               {result.warning && <p className="mt-3 text-sm text-amber-400">{result.warning}</p>}
+              {result.private && (
+                <p className="mt-3 font-mono text-[11px] text-emerald-300/80">
+                  {result.private.ok
+                    ? `Read on this laptop · ${result.private.model ?? "local model"} via Meterless · ${result.private.named ?? 0} promises named · ${result.private.receipts?.length ?? 0} local receipts · nothing sent to a cloud`
+                    : result.private.reason}
+                </p>
+              )}
               <p className="mt-3 font-mono text-[11px] text-zinc-500">
                 {result.name} · {result.source} · {result.engine}
               </p>
@@ -190,7 +197,10 @@ export function Desk() {
                   <p className="text-sm leading-relaxed text-zinc-200">{result.nemotron.why}</p>
                   {result.nemotron.model && (
                     <p className="mt-1 font-mono text-[11px] text-zinc-500">
-                      {result.nemotron.model} · {result.nemotron.receipt?.provider ?? "nvidia"} via Meterless
+                      {result.nemotron.model} ·{" "}
+                      {result.nemotron.receipt?.kind === "local"
+                        ? "on this laptop via Meterless"
+                        : `${result.nemotron.receipt?.provider ?? "nvidia"} via Meterless`}
                       {result.nemotron.receipt?.receipt_id && ` · receipt ${result.nemotron.receipt.receipt_id}`}
                       {result.nemotron.receipt?.ms ? ` · ${(result.nemotron.receipt.ms / 1000).toFixed(1)} s` : ""}
                     </p>
