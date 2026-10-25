@@ -70,3 +70,12 @@ body {
 .badge.duplicate {
   color: #93c5fd;
 }
+.badge.not_done {
+  color: #f87171;
+}
+.badge.partial {
+  color: #fbbf24;
+}
+.badge.unclear {
+  color: #a1a1aa;
+}

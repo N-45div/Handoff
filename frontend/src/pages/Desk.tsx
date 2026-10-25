@@ -1,18 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  buildTask,
-  catalog,
-  investigate,
-  sample,
-  setPrice,
-  villageDemo,
-  type Investigate,
-  type Listing,
-  type Task,
-} from "../lib/api";
+import { VerdictRow } from "../components/VerdictRow";
+import { buildTask, investigate, sample, villageDemo, type Investigate, type Task } from "../lib/api";
 
-const filters = ["all", "dropped", "unclaimed", "duplicate", "kept"] as const;
+const chatFilters = ["all", "dropped", "unclaimed", "duplicate", "kept"];
+const evidenceFilters = ["all", "not_done", "partial", "unclear", "kept"];
 
 export function Desk() {
   const [params] = useSearchParams();
@@ -23,17 +15,7 @@ export function Desk() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<Investigate | null>(null);
   const [task, setTask] = useState<Task | null>(null);
-  const [filter, setFilter] = useState<(typeof filters)[number]>("all");
-  const [listings, setListings] = useState<Listing[]>([]);
-
-  async function loadListings() {
-    const data = await catalog();
-    setListings(data.listings || []);
-  }
-
-  useEffect(() => {
-    loadListings().catch(() => undefined);
-  }, []);
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     const kind = params.get("sample");
@@ -98,6 +80,21 @@ export function Desk() {
   }
 
   const c = result?.counts || {};
+  const evidence = Boolean(result?.evidence);
+  const filters = evidence ? evidenceFilters : chatFilters;
+  const tiles: [string, number][] = evidence
+    ? [
+        ["Promises", result?.promises ?? 0],
+        ["Not done", c.not_done ?? 0],
+        ["Partial", c.partial ?? 0],
+        ["Kept", c.kept ?? 0],
+      ]
+    : [
+        ["Promises", result?.promises ?? 0],
+        ["Dropped", c.dropped ?? 0],
+        ["Unclaimed", c.unclaimed ?? 0],
+        ["Kept", c.kept ?? 0],
+      ];
   const rows = (result?.verdicts || []).filter((v) => filter === "all" || v.verdict === filter);
 
   return (
@@ -173,12 +170,7 @@ export function Desk() {
           {result && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["Promises", result.promises ?? 0],
-                  ["Dropped", c.dropped ?? 0],
-                  ["Unclaimed", c.unclaimed ?? 0],
-                  ["Kept", c.kept ?? 0],
-                ].map(([k, v]) => (
+                {tiles.map(([k, v]) => (
                   <div key={String(k)} className="border-b border-zinc-800 pb-2">
                     <p className="text-2xl font-medium">{v}</p>
                     <p className="text-[11px] uppercase tracking-wide text-zinc-500">{k}</p>
@@ -193,18 +185,27 @@ export function Desk() {
                 {result.name} · {result.source} · {result.engine}
               </p>
               {result.nemotron?.why && (
-                <p className="mt-4 border-t border-zinc-800 pt-3 text-sm leading-relaxed text-zinc-200">
-                  {result.nemotron.why}
-                </p>
+                <div className="mt-4 border-t border-zinc-800 pt-3">
+                  <p className="text-sm leading-relaxed text-zinc-200">{result.nemotron.why}</p>
+                  {result.nemotron.model && (
+                    <p className="mt-1 font-mono text-[11px] text-zinc-500">
+                      {result.nemotron.model} via {result.nemotron.route}
+                    </p>
+                  )}
+                </div>
               )}
-              {result.nemotron?.skipped && (
+              {(result.nemotron?.skipped || result.nemotron?.ok === false) && (
                 <p className="mt-4 border-t border-zinc-800 pt-3 text-sm text-amber-300">
-                  {result.nemotron.reason || "Nemotron skipped. The Zetaris score still stands."}
+                  {result.nemotron.reason || "Nemotron did not answer. The Zetaris verdicts still stand."}
                 </p>
               )}
               {result.memory && (
                 <p className="mt-2 font-mono text-[11px] text-zinc-500">
-                  H-MEM stored {result.memory.stored_now ?? 0} open promises · {result.memory.count ?? 0} prior cases
+                  {result.memory.ok === false
+                    ? result.memory.reason
+                    : `H-MEM · ${result.memory.count ?? 0} cases in memory${
+                        result.memory.stored_now ? ` · ${result.memory.stored_now} stored now` : ""
+                      }`}
                 </p>
               )}
             </>
@@ -228,6 +229,36 @@ export function Desk() {
         </section>
       )}
 
+      {result?.agents && result.agents.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm uppercase tracking-wide text-zinc-500">Who left work undone</h2>
+          <table className="mt-3 w-full font-mono text-[12px]">
+            <thead className="text-left text-zinc-500">
+              <tr>
+                <th className="py-1 font-normal">Agent</th>
+                <th className="font-normal">Promises</th>
+                <th className="font-normal">Not done</th>
+                <th className="font-normal">Partial</th>
+                <th className="font-normal">Kept</th>
+                <th className="font-normal">Undone</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800">
+              {result.agents.map((a) => (
+                <tr key={a.agent}>
+                  <td className="py-1.5">{a.agent}</td>
+                  <td>{a.promises}</td>
+                  <td>{a.not_done}</td>
+                  <td>{a.partial}</td>
+                  <td>{a.kept}</td>
+                  <td>{Math.round(a.undone_rate * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {result && (
         <section className="mt-8">
           <div className="flex flex-wrap gap-2">
@@ -238,62 +269,17 @@ export function Desk() {
                 onClick={() => setFilter(f)}
                 className={filter === f ? "btn-solid" : "btn-ghost"}
               >
-                {f}
+                {f.replace("_", " ")}
               </button>
             ))}
           </div>
           <ol className="mt-4 divide-y divide-zinc-800">
             {rows.slice(0, 80).map((v, i) => (
-              <li key={i} className="py-4">
-                <div className="flex flex-wrap gap-3 font-mono text-[11px] text-zinc-500">
-                  <span className={`badge ${v.verdict}`}>{v.verdict}</span>
-                  <span>{v.from}</span>
-                  <span>{v.at?.slice(0, 19)}</span>
-                </div>
-                <p className="mt-2 text-[15px]">{v.quote}</p>
-                <p className="mt-1 text-sm text-zinc-500">{v.why}</p>
-              </li>
+              <VerdictRow key={v.id || i} v={v} />
             ))}
           </ol>
         </section>
       )}
-
-      <section className="mt-16 border-t border-zinc-800 pt-10">
-        <h2 className="text-xl font-medium">Listed tasks</h2>
-        <p className="mt-1 text-sm text-zinc-500">Seller sets the list price. Take is 20%.</p>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {listings.map((row) => (
-            <article key={row.id} className="rounded-xl border border-zinc-800 p-5">
-              <h3 className="font-medium">{row.title}</h3>
-              <p className="mt-2 text-sm text-zinc-500">{row.notes}</p>
-              <p className="mt-3 font-mono text-sm">
-                ${row.list_price_usd.toFixed(0)} · seller ${row.seller_payout_usd.toFixed(0)}
-              </p>
-              <form
-                className="mt-3 flex gap-2"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const input = e.currentTarget.elements.namedItem("price") as HTMLInputElement;
-                  await setPrice(row.id, Number(input.value));
-                  await loadListings();
-                }}
-              >
-                <input
-                  name="price"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  defaultValue={row.list_price_usd}
-                  className="w-28 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1.5 font-mono text-sm"
-                />
-                <button type="submit" className="btn-ghost">
-                  Update
-                </button>
-              </form>
-            </article>
-          ))}
-        </div>
-      </section>
     </main>
   );
 }

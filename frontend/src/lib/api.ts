@@ -9,6 +9,7 @@ export type Listing = {
 };
 
 export type Verdict = {
+  id?: string;
   verdict: string;
   from?: string;
   slice?: string;
@@ -16,7 +17,25 @@ export type Verdict = {
   quote?: string;
   why?: string;
   change?: string;
+  task?: string;
+  turn_ids?: string[];
+  turns_in_window?: string | number;
+  judge_model?: string;
 };
+
+export type Turn = { id: string; created_at: string; action_type: string; action: string; output: string };
+
+export type AgentRow = {
+  agent: string;
+  promises: number;
+  kept: number;
+  partial: number;
+  not_done: number;
+  unclear: number;
+  undone_rate: number;
+};
+
+export type LedgerEntry = { action: string; actor: string; timestamp: number; newState?: { confidence?: number } };
 
 export type Investigate = {
   name?: string;
@@ -29,8 +48,10 @@ export type Investigate = {
   weeks?: { title: string; open: number; counts: Record<string, number> }[];
   verdicts?: Verdict[];
   improve?: Verdict[];
-  memory?: { stored_now?: number; count?: number; cases?: { verdict?: string; quote?: string; from?: string }[] };
-  nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string };
+  evidence?: boolean;
+  agents?: AgentRow[];
+  memory?: { ok?: boolean; engine?: string; reason?: string; stored_now?: number; count?: number; cases?: { verdict?: string; quote?: string; from?: string }[] };
+  nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string; model?: string; route?: string };
   listing_blurb?: { ok?: boolean; text?: string; reason?: string };
 };
 
@@ -95,6 +116,21 @@ export async function villageDemo() {
   const res = await fetch("/api/demo");
   if (!res.ok) await readError(res);
   return res.json() as Promise<Investigate>;
+}
+
+export async function citedTurns(ids: string[]) {
+  const res = await fetch(`/api/turns?ids=${encodeURIComponent(ids.join(","))}`);
+  if (!res.ok) await readError(res);
+  return res.json() as Promise<{ turns: Turn[] }>;
+}
+
+export async function sendFeedback(promiseId: string, kind: "helpful" | "wrong") {
+  const fd = new FormData();
+  fd.set("promise_id", promiseId);
+  fd.set("kind", kind);
+  const res = await fetch("/api/feedback", { method: "POST", body: fd });
+  if (!res.ok) await readError(res);
+  return res.json() as Promise<{ memory: { confidence: number }; audit: { entries: LedgerEntry[] } }>;
 }
 
 export async function buildTask(swarm: string, body: string, file?: File | null) {
