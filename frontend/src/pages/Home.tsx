@@ -107,8 +107,8 @@ export function Home() {
         {[
           [
             "01",
-            "Read in place",
-            "Chat, 213,113 computer actions and 15,372 memory notes stay in their own stores. Zetaris queries all three as one.",
+            "One query layer",
+            "Chat, 213,113 computer actions and 15,372 memory notes are separate sources. Zetaris joins them in one SQL layer.",
           ],
           [
             "02",
