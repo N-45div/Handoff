@@ -101,10 +101,11 @@ export function Desk() {
     <main className="mx-auto max-w-6xl px-5 py-10">
       <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-500">Desk</p>
       <h1 className="mt-2 max-w-xl text-3xl font-medium tracking-tight">
-        Investigate, then build the task.
+        Who promised what, and did they do it?
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
-        Village is research-only. Secrets cannot become a task.
+        Open the AI Village investigation, or paste your own swarm or coding-agent log. Village data is
+        research only; secrets never leave in an exported task.
       </p>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">

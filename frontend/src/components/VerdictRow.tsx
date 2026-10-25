@@ -59,7 +59,7 @@ export function VerdictRow({ v }: { v: Verdict }) {
       {v.id && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className="btn-ghost" disabled={busy} onClick={toggle}>
-            {open ? "Hide evidence" : `Evidence (${ids.length})`}
+            {open ? "Hide evidence" : ids.length ? `Evidence · ${ids.length} actions` : "Evidence"}
           </button>
           <button type="button" className="btn-ghost" disabled={busy} onClick={() => review("helpful")}>
             Confirm
