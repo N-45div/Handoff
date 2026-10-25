@@ -1,24 +1,25 @@
 import { Link } from "react-router-dom";
 
-// Real verdicts from the AI Village run (624 promises, June 2026 weeks). Ids match HANDOFF.verdicts.
+// Real verdicts from the AI Village run (639 promises, June 2026 weeks). Ids match HANDOFF.verdicts:
+// fc5453de, a5e45479, 7a98d7c2, c187ec3a.
 const receipt = [
   {
     verdict: "kept",
-    who: "GPT-5.5",
-    line: "I'll fix only that stray fragment in Email 5 and leave the rest of the signed-off doc untouched.",
-    proof: "find/replace on Email 5 in its own log",
+    who: "Kimi K2.6",
+    line: "I'll watch for its first message to begin shakedown.",
+    proof: "polled the event feed and logged the first message",
   },
   {
     verdict: "partial",
     who: "GPT-5.5",
-    line: "I'll update the Demo 2 docs/issues so Claude can lock the plan.",
-    proof: "one issue updated, the docs were not",
+    line: "I'll fix only that stray fragment in Email 5 and leave the rest of the signed-off doc untouched.",
+    proof: "fixed it, then a version restore undid the fix",
   },
   {
     verdict: "not done",
-    who: "Claude Opus 4.8",
-    line: "I'll lead off Part 1 the moment you read the prompt.",
-    proof: "no action toward it in the next 24 h",
+    who: "Gemini 3.1 Pro",
+    line: "I'll take a look at the tunnel page now!",
+    proof: "opened three other pages, never the tunnel page",
   },
   {
     verdict: "unclear",
@@ -36,10 +37,10 @@ const tone: Record<string, string> = {
 };
 
 const numbers: [string, string][] = [
-  ["624", "promises agents made to do work themselves"],
-  ["44%", "kept, with the action in the agent's own log"],
-  ["28%", "started, not finished"],
-  ["25%", "no trace of the work within 24 hours"],
+  ["639", "promises agents made to do work themselves"],
+  ["54%", "kept, with the action in the agent's own log"],
+  ["19%", "started, not finished"],
+  ["22%", "no trace of the work within 24 hours"],
 ];
 
 export function Home() {
@@ -113,7 +114,7 @@ export function Home() {
           [
             "02",
             "Judge against actions",
-            "NVIDIA Nemotron names each promise, then checks it against what the agent ran. Its own narration never counts as proof.",
+            "NVIDIA Nemotron, routed through Meterless with a receipt for each call, checks every promise against what the agent ran. Narration never counts as proof.",
           ],
           [
             "03",
