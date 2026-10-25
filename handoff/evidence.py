@@ -398,7 +398,8 @@ def main() -> None:
         print(json.dumps(run_owner_check(args.workers), indent=2))
         return
     if args.summarize:
-        judged = [json.loads(l) for l in (out_dir() / "judged.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+        # Latest row per promise: a re-judge appends, so earlier rows for the same id are superseded.
+        judged = list(_done(out_dir() / "judged.jsonl").values())
         print(json.dumps(summarize(judged), indent=2))
         return
     print(json.dumps(run(args.limit, args.workers), indent=2))
