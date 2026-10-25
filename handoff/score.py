@@ -274,7 +274,7 @@ def open_promises(blob: dict, limit: int = 40) -> list[dict]:
     rows = [
         v
         for v in blob.get("verdicts") or []
-        if v.get("verdict") in ("dropped", "unclaimed")
+        if v.get("verdict") in ("dropped", "unclaimed", "not_done", "partial")
     ]
     known = KNOWN_SLUGS
     if any(v.get("slice") in known for v in rows):

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from handoff.catalog import load_listings, quote, set_price
 from handoff.improve import suggestions
-from handoff.score import investigate_table, investigate_text, open_promises
+from handoff.score import investigate_text, open_promises
 from handoff.secrets import SecretLeak
 from handoff.task import build_task
 from handoff.zetaris import run_sql
@@ -79,8 +79,17 @@ def _tools() -> list[dict]:
         },
         {
             "name": "handoff_demo",
-            "description": "Village three-week demo in Zetaris. Research only. Not a task. Not for sale.",
+            "description": "AI Village, three weeks: every promise judged against the agent's own computer actions, read through Zetaris. Research only.",
             "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "handoff_cited_actions",
+            "description": "One Village verdict and the executed actions it cites, read from HANDOFF.cu_turns.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"promise_id": {"type": "string"}},
+                "required": ["promise_id"],
+            },
         },
     ]
 
@@ -169,21 +178,34 @@ def _call(name: str, args: dict) -> dict:
         slim["verdicts"] = (LAST.get("verdicts") or [])[:20]
         return _text(slim)
     if name == "handoff_demo":
-        LAST = investigate_table("HANDOFF.promises", "AI Village — three post-Alibi weeks")
-        LAST["for_sale"] = False
+        from handoff.village import investigation
+
+        LAST = investigation()
         return _text(
             {
                 "name": LAST.get("name"),
+                "source": LAST.get("source"),
+                "promises": LAST.get("promises"),
                 "counts": LAST.get("counts"),
-                "weeks": LAST.get("weeks"),
+                "agents": (LAST.get("agents") or [])[:8],
+                "why": (LAST.get("nemotron") or {}).get("why"),
                 "for_sale": False,
                 "task_blocked": "Village is research-only. Not a listed task.",
-                "improve": LAST.get("improve"),
             }
         )
+    if name == "handoff_cited_actions":
+        from handoff.village import cited_turns, rows
+
+        match = [r for r in rows() if r["id"] == str(args.get("promise_id") or "")]
+        if not match:
+            return _text({"error": "unknown promise id"})
+        return _text({"verdict": match[0], "actions": cited_turns(match[0]["turn_ids"])})
     if name == "handoff_open_promises":
-        blob = LAST or investigate_table("HANDOFF.promises", "AI Village — three post-Alibi weeks")
-        return _text(open_promises(blob, int(args.get("limit") or 20)))
+        if not LAST:
+            from handoff.village import investigation
+
+            LAST = investigation()
+        return _text(open_promises(LAST, int(args.get("limit") or 20)))
     if name == "handoff_improve":
         blob = LAST or {}
         return _text(blob.get("improve") or suggestions(blob.get("verdicts") or []))
