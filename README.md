@@ -1,109 +1,110 @@
 # Handoff
 
-An agent that turns a raw swarm or coding-agent **transcript into a task** a lab can train on: instruction, OpenEnv episode, promise verifier.
+**Handoff finds the promises AI agents make to each other and checks each one against what the agent actually did.**
 
-Chat is the contract. Promises are kept / dropped / unclaimed / duplicate. That grade **is** the reward. Raw JSONL is not the product. Village dumps are research-only and never listed.
+Agents in a team say "I'll send it", "on it", "let me fix that". Read from chat alone, nearly all of those look kept, because the agent keeps talking. Handoff reads the agent's own computer-use log instead. Chat, executed actions and memory notes are separate sources, and Zetaris joins them in one SQL layer. NVIDIA Nemotron names each promise and judges it against the actions. Every verdict goes into Meterless H-MEM with its sources, so a reviewer can confirm it or mark it wrong.
 
-```bash
-pip install -r requirements.txt
-python -m handoff.app
-```
+## What it found in the AI Village
 
-API (Zetaris):
+Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your leader!", "Organise an event!" and "Compete to be the best AI Assistant!" (May 26 to July 6, 2026). 21 agents from several labs, 9,614 agent chat messages, 213,113 computer actions and 15,372 memory notes.
 
-```bash
-python -m handoff.app
-```
+| | Promises | Share |
+|---|---:|---:|
+| Kept: the work shows in the agent's own log within 24 hours | 275 | 44% |
+| Partial: started, not finished | 172 | 28% |
+| Not done: no action toward it in the next 24 hours | 153 | 25% |
+| Unclear: the proof would only be on screen | 24 | 4% |
+| **Total** | **624** | |
 
-Product site (Vite):
+- Read from chat alone (did the agent say anything afterwards?), 95% of the 1,933 promise-like lines look kept.
+- Kept rates by agent (20 or more promises each) range from 54% for Gemini 3.1 Pro to 33% for GPT-5.1.
+- How the 624 were found: 1,582 first-person lines ("I'll", "let me", "on it") became 870 concrete commitments. Then 246 were removed because the task belonged to another agent; in a spot check of 8 removals, 1 was a real promise.
+- Every "not done" verdict was judged a second time with up to 60 actions instead of 14. That changed 88 of 235. Before this second look, a 60-promise sample showed about 1 in 4 "not done" verdicts were evidence the first pass had not seen.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## How it works
 
-Open http://127.0.0.1:5173 — landing. Desk: http://127.0.0.1:5173/desk. Vite proxies `/api` to the FastAPI process on :8787.
+1. **One query layer.** The gated Village tables stream once into Parquet files in Zetaris's file store. Zetaris Lightning SQL reads them as `HANDOFF.promises` (chat), `HANDOFF.cu_turns` (computer actions), `HANDOFF.memories` (memory notes) and `HANDOFF.verdicts`. Every read in the app goes through Zetaris.
+2. **Find promises.** A first-person pattern picks candidate lines. Nemotron 3.5 Lightning (thinking off) names the concrete task. Nemotron 3 Super checks that the speaker owns the task, not another agent.
+3. **Judge against actions.** For each promise, Handoff takes the agent's executed actions and later chat for the next 24 hours, ranks them against the task, and asks Nemotron 3 Super for kept, partial, not done or unclear, citing action ids. Only executed actions and tool output count. The agent's narration is shown as context and never proves anything. Every "not done" gets a second, wider look.
+4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history.
+5. **Explain.** Nemotron 3 Super writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
 
-- **Load ops swarm / coding log** — Nightshift or a Cursor-shaped PR transcript (extra keys ignored)
-- **Investigate** — why the swarm stalled (Track 02)
-- **Build task** — instruction + episode + verifier; seller list price, Handoff takes 20%. Secrets (`hf_`, `sk-`, `.env`) are refused
-- **Village research** — three post-Alibi weeks in Zetaris. Not a task. Not for sale.
+Every model call goes through `handoff/llm.py`, which records the route and model on each verdict. Steps run on NVIDIA Nemotron hosted by Nebius by default. Set `HANDOFF_<STEP>_ROUTE=meterless` to send a step through the Meterless Runtime (Nightshift) instead.
 
-Verdicts: kept, dropped, unclaimed, duplicate.
+## The desk
 
-**Track:** Open Agent Hackathon 2026 — Track 02, The Agent That Can Explain Why.
+`http://localhost:5173/desk`. **Village** opens the investigation: counts, who left work undone, the cited Nemotron paragraph, and every verdict. **Evidence** opens two columns: what the agent did (`HANDOFF.cu_turns`) and what it wrote in its memory (`HANDOFF.memories`, context only). You can also paste your own swarm or coding-agent log; without a computer-use log, those are scored from chat only, and the desk says so.
 
-Week timeline, competitor notes, and the catalog / OpenEnv POC: [ROADMAP.md](ROADMAP.md).
+## Run it
 
-**Catalog:** listed **tasks**, not dumps. Seller sets list price; Handoff takes 20%. Village is never listed.
-
-```bash
-python -m handoff.task
-python -m handoff.mcp_server
-```
-
-Cursor MCP: this repo’s `.cursor/mcp.json`, or copy [mcp.example.json](mcp.example.json). Primary tool: `handoff_build_task`.
-
-Ask: *why did the swarm stall on goal X?*
-
-- Who promised what to whom
-- Who kept it, dropped it, duplicated it, or never picked it up
-- Whether a promise written into an agent's memory was kept more often than one said only in chat
-
-## This is not Alibi
-
-Alibi (prior work, pre-22 Oct 2026) checks **claims about the past** against the claiming agent's own log. Handoff is new work: it checks **promises between agents** against later computer-use turns. Do not copy Alibi into this tree. Dataset-loader idea only is carried over (stream gated tables, never commit them).
-
-## Zetaris (Cursor + UI)
-
-Use Zetaris’s own Cursor guide, not a homemade client: [Connecting Cursor to Zetaris](https://zetaris.github.io/getting-started/docs/connections/cursor-connection.html). The recipes live in a clone at `C:\Users\DivijN\zetaris-getting-started` (`AGENTS.md` + `scripts/preflight.py`). Credentials go in **`.env.local` only**, never in a prompt.
-
-**UI (beginner route, no extra tools):** after the local Docker stack is up, open [http://localhost:3000](http://localhost:3000), sign in, SQL Editor, run `SELECT 1 AS one;` then `SHOW LIGHTNING DATABASES`. Create the REST key in the GUI: Management → API Tokens. Org ID is Management → Organisation.
-
-**Docker:** Docker Desktop is already running. Images are not public. Download `zetaris-platform.zip` from Zetaris Cloud → [Start Free / Run locally](https://www.zetaris.com/cloud), then:
-
-```bash
-docker login zetarishackathon.azurecr.io
-# unzip into a folder that is not Downloads
-docker compose pull
-docker compose up -d
-```
-
-Read-only preflight (REST) from the getting-started clone, after `.env.local` has a key:
-
-```bash
-python C:\Users\DivijN\zetaris-getting-started\scripts\preflight.py
-```
-
-Local stack is running. SQL Workspace `SELECT 1 AS one` returned `1`.
-
-```bash
-python -m handoff.slice
-python -m handoff.register
-python -m handoff.investigate
-python -m handoff.report
-python -m handoff.cu_slice
-python -m handoff.register
-python -m handoff.confirm
-```
-
-Chat lives in `HANDOFF.promises`. Computer-use **sessions** (~43 MB, three weeks) live in `HANDOFF.cu_sessions`. Do not download `computer_use_turns.jsonl.gz` (2.8 GB) until you need screen-level proof.
-
-## Data
-
-Uses the gated [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village) for research/analysis only. Do not train on it. Cite AI Digest / AI Village. Keep dumps in `./data` (gitignored).
+You need Python 3.12, Node 20+, Docker Desktop, a local Zetaris install ([getting started](https://github.com/zetaris/getting-started)), Hugging Face access to the gated [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village), and a Nebius Token Factory key.
 
 ```bash
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-copy .env.example .env   # add HF_TOKEN
+copy .env.example .env.local        # HF_TOKEN, ZETARIS_*, NEBIUS_API_KEY
+
+# 1. Slice the three weeks and register them in Zetaris
 python -m handoff.fetch catalog
-python -m handoff.rank
+python -m handoff.fetch chat
+python -m handoff.slice
+python -m handoff.cu_slice
+python -m handoff.turns             # streams 2.8 GB once, keeps 213k rows
+python -m handoff.memories          # streams 2.5 GB once, keeps 15k rows
+python -m handoff.register
+
+# 2. Judge
+python -m handoff.evidence
+python -m handoff.evidence --owner-check
+python -m handoff.second_look --all
+python -m handoff.evidence --summarize
+
+# 3. Memory (separate terminal)
+cd hmem && npm install && npm run setup && npm run serve
+
+# 4. Publish, remember, explain, serve
+python -m handoff.village publish
+python -m handoff.village remember
+python -m handoff.village why
+python -m handoff.app
+cd frontend && npm install && npm run dev
 ```
 
-Judges need their own Hugging Face access to rerun the Village path.
+Zetaris runs locally in Docker (UI on :3000, REST on :8888). Credentials stay in `.env.local`.
+
+## MCP
+
+`.cursor/mcp.json` connects the Handoff MCP server to Cursor (`mcp.example.json` for other clients). The tools are:
+
+| Tool | What it does |
+|---|---|
+| `handoff_demo` | The Village investigation |
+| `handoff_cited_actions` | One verdict and the actions it cites |
+| `handoff_investigate` | Score a pasted transcript |
+| `handoff_open_promises` | Open promises from the last investigation |
+| `handoff_improve` | What to change next session |
+| `handoff_build_task` | Export a transcript you own as an OpenEnv-shaped task with a promise verifier |
+
+Village data is never exported as a task.
+
+## Limits
+
+- The judge sees the 14 actions that best match the task, or 60 in the second look. Proof elsewhere in the log can be missed.
+- The window is 24 hours, so work done later counts as not done.
+- Screenshots are not read yet. "Unclear" often means the proof was only on screen.
+- The owner check removes some real promises (1 of 8 in a spot check).
+- The pattern only finds first-person phrasing. Promises worded another way are not counted.
+- An LLM judge can be wrong. That is why the desk records reviewer corrections in H-MEM instead of hiding them.
+- Whether writing a promise into memory helps keep it was tested and was inconclusive. The notes mention nearly every task, so a keyword match cannot tell a to-do from a passing mention. Handoff does not claim that result.
+
+## Data
+
+The [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village) is from AI Digest and is gated. It is used here for research only: no training on it, cite AI Digest / AI Village. Slices stay in `./data`, which is gitignored. Rerunning the Village path needs your own Hugging Face access.
+
+## Prior work
+
+Alibi, an earlier separate project, checked agents' claims about the past against their logs. Handoff checks promises about the future and is new code; only the idea of streaming the gated tables was carried over.
 
 ## License
 
-Code in this repository is yours. Village rows are not redistributed here.
+MIT. `hmem/src/engine.ts` comes from Meterless's agentathon starter (Apache-2.0).
