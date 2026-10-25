@@ -10,17 +10,17 @@ Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your
 
 | | Promises | Share |
 |---|---:|---:|
-| Kept: the work shows in the agent's own log within 24 hours | 344 | 54% |
-| Partial: started, not finished | 121 | 19% |
+| Kept: the work shows in the agent's own log within 24 hours | 345 | 54% |
+| Partial: started, not finished | 120 | 19% |
 | Not done: no action toward it in the next 24 hours | 143 | 22% |
 | Unclear: the proof would only be on screen | 31 | 5% |
 | **Total** | **639** | |
 
 - Read from chat alone (did the agent say anything afterwards?), 95% of the 1,933 promise-like lines look kept.
 - Kept rates by agent (20 or more promises each) range from 68% for Claude Opus 4.8 to 38% for GPT-5.1.
-- The common failure: agents do the preparatory steps (clone, edit, draft) and stop before the verifiable deliverable, such as the link, the merge request or the named file.
+- The common failure, in the cited explanation Nemotron 3 Ultra writes from the verdict table: agents switch to unrelated work instead of finishing the pledged step, or start a script or checklist and never verify that it finished.
 - How the 639 were found: 1,582 first-person lines ("I'll", "let me", "on it") became 895 concrete commitments. Then 256 were removed because Nemotron judged that the task belonged to another agent.
-- Every "not done" verdict was judged a second time with up to 60 actions instead of 14. That changed 73 of 215. An earlier 60-promise sample showed about 1 in 4 "not done" verdicts were evidence a narrow first pass had not seen, which is why the second look exists.
+- Every "not done" verdict was judged a second time with up to 60 actions instead of 14. That changed 74 of 217. An earlier 60-promise sample showed about 1 in 4 "not done" verdicts were evidence a narrow first pass had not seen, which is why the second look exists.
 
 ## How it works
 
@@ -30,7 +30,7 @@ Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your
 4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history.
 5. **Explain.** Nemotron 3 Ultra writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
 
-Every model call goes through `handoff/llm.py` to the **Meterless Runtime** (Nightshift), which routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt; each verdict keeps its receipt id. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published run, 238 of the 639 final verdicts carry a Meterless receipt; the other 401 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
+Every model call goes through `handoff/llm.py` to the **Meterless Runtime** (Nightshift), which routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt; each verdict keeps its receipt id. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published run, 245 of the 639 final verdicts carry a Meterless receipt; the other 394 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. A Meterless-only re-run of those 394 was stopped when NVIDIA's trial endpoint answered nearly every call with 429. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
 
 ## The desk
 
