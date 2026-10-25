@@ -49,11 +49,16 @@ def desk() -> FileResponse:
 def health() -> dict:
     from handoff.nemotron import ping as night_ping
 
+    from handoff.hmem import health as hmem_health
+
     night = night_ping(timeout=2)
+    mem = hmem_health()
     out = {
         "nightshift": bool(night.get("ok")),
         "nightshift_unauthorized": bool(night.get("unauthorized")),
         "nightshift_error": night.get("error"),
+        "hmem": bool(mem.get("ok")),
+        "hmem_memories": mem.get("memories"),
     }
     try:
         from handoff.zetaris import run_sql
@@ -66,13 +71,47 @@ def health() -> dict:
 
 @app.get("/api/demo")
 def demo() -> dict:
+    from handoff.village import investigation
+
     try:
-        blob = attach_sponsors(investigate_table(DEMO_TABLE, "AI Village — three post-Alibi weeks"))
-        blob["for_sale"] = False
-        blob["task_blocked"] = "Village is research-only. Handoff will not build a listed task from it."
-        return blob
+        return investigation()
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e)[:400]) from e
+
+
+@app.get("/api/turns")
+def turns(ids: str = Query("")) -> dict:
+    from handoff.village import cited_turns
+
+    try:
+        return {"turns": cited_turns([i.strip() for i in ids.split(",") if i.strip()])}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)[:400]) from e
+
+
+@app.post("/api/feedback")
+def verdict_feedback(promise_id: str = Form(...), kind: str = Form(...)) -> dict:
+    from handoff.hmem import _index, audit, feedback
+
+    if kind not in ("helpful", "not_helpful", "wrong"):
+        raise HTTPException(status_code=400, detail="kind must be helpful, not_helpful or wrong")
+    memory_id = _index().get(promise_id)
+    if not memory_id:
+        raise HTTPException(status_code=404, detail="This verdict is not in H-MEM yet.")
+    try:
+        return {"memory": feedback(memory_id, kind), "audit": audit(memory_id)}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"H-MEM: {str(e)[:200]}") from e
+
+
+@app.get("/api/audit")
+def verdict_audit(promise_id: str = Query(...)) -> dict:
+    from handoff.hmem import _index, audit
+
+    memory_id = _index().get(promise_id)
+    if not memory_id:
+        raise HTTPException(status_code=404, detail="This verdict is not in H-MEM yet.")
+    return {"memory_id": memory_id, **audit(memory_id)}
 
 
 @app.get("/api/sample")
