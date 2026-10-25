@@ -11,7 +11,7 @@ from handoff.zetaris import run_sql
 CONTAINER = "zetaris-driver-1"
 REMOTE_DIR = "/home/zetaris/customer-data/shared/handoff"
 DDL = Path(__file__).resolve().parent.parent / "sql" / "01_handoff_filestore.sql"
-FILES = ("chat_messages.parquet", "cu_sessions.csv", "cu_turns.parquet")
+FILES = ("chat_messages.parquet", "cu_sessions.csv", "cu_turns.parquet", "memories.parquet")
 
 
 def _run(cmd: list[str]) -> None:

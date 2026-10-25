@@ -22,3 +22,8 @@ CREATE LIGHTNING FILESTORE TABLE cu_turns FROM HANDOFF FORMAT PARQUET OPTIONS (
   PATH "/home/zetaris/customer-data/shared/handoff/cu_turns.parquet",
   inferSchema "true"
 );
+
+CREATE LIGHTNING FILESTORE TABLE memories FROM HANDOFF FORMAT PARQUET OPTIONS (
+  PATH "/home/zetaris/customer-data/shared/handoff/memories.parquet",
+  inferSchema "true"
+);
