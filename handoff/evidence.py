@@ -262,6 +262,53 @@ def run(limit: int | None, workers: int) -> dict:
     return summarize(final)
 
 
+OWNER_SYSTEM = (
+    "You check one extraction. Given a chat message from an AI agent and a task taken from it, "
+    "answer whether the SPEAKER said they themselves will do that task. If the message asks, "
+    "thanks or tells another agent to do it, the answer is no. Reply with JSON only: "
+    '{"speaker_owns_task": bool}'
+)
+
+
+def owner_check(row: dict) -> dict:
+    # Ownership needs reasoning: messages often mix a request to another agent with the
+    # speaker's own follow-up ("after your push I'll verify"). Lightning without thinking
+    # dropped clear first-person promises, so this uses the judge model.
+    msgs = [
+        {"role": "system", "content": OWNER_SYSTEM},
+        {"role": "user", "content": f"Speaker: {row['speaker']}\nMessage: {row['quote']}\nTask: {row['task']}"},
+    ]
+    parsed = None
+    for _ in range(2):
+        res = chat("judge", msgs, max_tokens=1500)
+        parsed = parse_json(res.get("text", "")) if res.get("ok") else None
+        if parsed:
+            break
+    owns = None if parsed is None else bool(parsed.get("speaker_owns_task"))
+    return {"id": row["id"], "owns": owns, "model": res.get("model")}
+
+
+def run_owner_check(workers: int = 8) -> dict:
+    """Drop verdicts whose task belonged to another agent (a request, not a promise)."""
+    path = out_dir() / "owner.jsonl"
+    done = _done(path)
+    judged = [json.loads(l) for l in (out_dir() / "judged.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    todo = [r for r in judged if r["id"] not in done]
+    with ThreadPoolExecutor(workers) as pool:
+        _append(path, list(pool.map(owner_check, todo)))
+    rows = _done(path).values()
+    return {"checked": len(rows), "not_speakers_task": sum(1 for r in rows if r["owns"] is False),
+            "unparsed": sum(1 for r in rows if r["owns"] is None)}
+
+
+def apply_owner_check(final: list[dict]) -> list[dict]:
+    path = out_dir() / "owner.jsonl"
+    if not path.is_file():
+        return final
+    wrong = {k for k, v in _done(path).items() if v.get("owns") is False}
+    return [r for r in final if r["id"] not in wrong]
+
+
 def apply_second_look(final: list[dict]) -> list[dict]:
     """Every not_done verdict was judged again with a wider view; that verdict is final."""
     path = out_dir() / "second.jsonl"
@@ -284,13 +331,15 @@ def apply_second_look(final: list[dict]) -> list[dict]:
 
 
 def summarize(final: list[dict]) -> dict:
-    final = apply_second_look(final)
+    before = len(final)
+    final = apply_second_look(apply_owner_check(final))
     counts = Counter(r["verdict"] for r in final)
     by_slice: dict[str, Counter] = {}
     for r in final:
         by_slice.setdefault(r["slice"], Counter())[r["verdict"]] += 1
     summary = {
         "promises": len(final),
+        "dropped_not_speakers_task": before - len(final),
         "counts": dict(counts),
         "second_look": {
             "checked": sum(1 for r in final if r.get("second_look")),
@@ -320,7 +369,11 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--summarize", action="store_true", help="rebuild the summary and Parquet from saved verdicts")
+    ap.add_argument("--owner-check", action="store_true", help="drop verdicts whose task was another agent's")
     args = ap.parse_args()
+    if args.owner_check:
+        print(json.dumps(run_owner_check(args.workers), indent=2))
+        return
     if args.summarize:
         judged = [json.loads(l) for l in (out_dir() / "judged.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
         print(json.dumps(summarize(judged), indent=2))
