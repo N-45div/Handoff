@@ -21,7 +21,7 @@ from handoff.zetaris import run_sql
 
 TABLE = "HANDOFF.verdicts"
 COLS = ("id", "created_at", "speaker", "slice", "goal_title", "quote", "task", "verdict", "reason", "turn_ids",
-        "turns_in_window", "chat_in_window", "judge_model", "judge_route")
+        "turns_in_window", "chat_in_window", "judge_model", "judge_route", "receipt_id", "judge_ms")
 VERDICTS = ("kept", "partial", "not_done", "unclear")
 
 WHY_SYSTEM = (
@@ -168,6 +168,7 @@ def why(force: bool = False) -> dict:
         "why": res.get("text") or "",
         "model": res.get("model"),
         "route": res.get("route"),
+        "receipt": res.get("receipt"),
         "promises": len(all_rows),
         "counts": dict(counts),
         "cited_ids": [e["id"] for e in examples],
@@ -212,6 +213,9 @@ def investigation() -> dict:
                 "turn_ids": r["turn_ids"],
                 "turns_in_window": r["turns_in_window"],
                 "judge_model": r["judge_model"],
+                "judge_route": r["judge_route"],
+                "receipt_id": r["receipt_id"] if r["receipt_id"] not in ("None", "") else None,
+                "judge_ms": r["judge_ms"],
             }
             for r in verdicts
         ],

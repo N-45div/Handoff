@@ -61,6 +61,12 @@ export function VerdictRow({ v }: { v: Verdict }) {
       <p className="mt-2 text-[15px]">{v.quote}</p>
       {v.task && <p className="mt-1 text-sm text-zinc-300">Promised: {v.task}</p>}
       <p className="mt-1 text-sm text-zinc-500">{v.why}</p>
+      {v.judge_model && (
+        <p className="mt-1 font-mono text-[11px] text-zinc-600">
+          judged by {v.judge_model.replace("nvidia/", "")}
+          {v.receipt_id ? ` via Meterless · receipt ${v.receipt_id}` : ""}
+        </p>
+      )}
       {v.id && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className="btn-ghost" disabled={busy} onClick={toggle}>

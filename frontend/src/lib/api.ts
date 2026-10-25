@@ -21,6 +21,17 @@ export type Verdict = {
   turn_ids?: string[];
   turns_in_window?: string | number;
   judge_model?: string;
+  judge_route?: string;
+  receipt_id?: string | null;
+  judge_ms?: string | number;
+};
+
+export type Receipt = {
+  receipt_id?: string;
+  routed_model?: string;
+  provider?: string;
+  ms?: number;
+  usage?: { input_tokens?: number; output_tokens?: number };
 };
 
 export type Turn = { id: string; created_at: string; action_type: string; action: string; output: string };
@@ -51,7 +62,7 @@ export type Investigate = {
   evidence?: boolean;
   agents?: AgentRow[];
   memory?: { ok?: boolean; engine?: string; reason?: string; stored_now?: number; count?: number; cases?: { verdict?: string; quote?: string; from?: string }[] };
-  nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string; model?: string; route?: string };
+  nemotron?: { ok?: boolean; skipped?: boolean; why?: string; reason?: string; model?: string; route?: string; receipt?: Receipt };
   listing_blurb?: { ok?: boolean; text?: string; reason?: string };
 };
 

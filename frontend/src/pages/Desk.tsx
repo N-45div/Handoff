@@ -190,7 +190,9 @@ export function Desk() {
                   <p className="text-sm leading-relaxed text-zinc-200">{result.nemotron.why}</p>
                   {result.nemotron.model && (
                     <p className="mt-1 font-mono text-[11px] text-zinc-500">
-                      {result.nemotron.model} via {result.nemotron.route}
+                      {result.nemotron.model} · {result.nemotron.receipt?.provider ?? "nvidia"} via Meterless
+                      {result.nemotron.receipt?.receipt_id && ` · receipt ${result.nemotron.receipt.receipt_id}`}
+                      {result.nemotron.receipt?.ms ? ` · ${(result.nemotron.receipt.ms / 1000).toFixed(1)} s` : ""}
                     </p>
                   )}
                 </div>
