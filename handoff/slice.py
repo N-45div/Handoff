@@ -7,6 +7,9 @@ import json
 import sys
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from handoff.fetch import CHAT, data_dir, download, read_jsonl_gz
 from handoff.goals import SLICES, window_for
 
@@ -37,6 +40,7 @@ def slice_chat() -> Path:
     csv_dest = out_dir / "chat_messages.csv"
     counts = {s["slug"]: 0 for s in SLICES}
     n = 0
+    rows = []
     fields = list(KEEP) + ["slice_slug", "goal_id", "goal_title"]
     with dest.open("w", encoding="utf-8") as fh, csv_dest.open(
         "w", encoding="utf-8", newline=""
@@ -59,9 +63,12 @@ def slice_chat() -> Path:
             row["goal_title"] = win["title"]
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             writer.writerow(row)
+            rows.append({k: str(row.get(k) or "") for k in fields})
             counts[win["slug"]] += 1
             n += 1
-    print(f"wrote {dest} and {csv_dest} ({n} agent rows)", file=sys.stderr)
+    # Zetaris reads CSV with backslash escapes, so quoted chat splits rows. Parquet cannot.
+    pq.write_table(pa.Table.from_pylist(rows), out_dir / "chat_messages.parquet", compression="zstd")
+    print(f"wrote {dest}, {csv_dest} and chat_messages.parquet ({n} agent rows)", file=sys.stderr)
     for slug, c in counts.items():
         print(f"  {slug}: {c}", file=sys.stderr)
     return csv_dest
