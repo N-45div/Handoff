@@ -35,6 +35,11 @@ WHY_SYSTEM = (
 )
 
 
+def clean(text) -> str:
+    """Village text holds stray halves of emoji; they cannot be encoded as UTF-8 JSON."""
+    return str(text or "").encode("utf-8", "replace").decode("utf-8")
+
+
 def publish() -> None:
     src = data_dir() / "slices" / "verdicts.parquet"
     subprocess.run(["docker", "cp", str(src), f"{CONTAINER}:{REMOTE_DIR}/verdicts.parquet"], check=True)
@@ -90,10 +95,44 @@ def cited_turns(ids: list[str]) -> list[dict]:
     for rec in run_sql(
         f"SELECT id, created_at, action_type, action, output FROM HANDOFF.cu_turns WHERE id IN ({inlist})", limit=40
     ):
-        out.append(dict(zip(("id", "created_at", "action_type", "action", "output"), rec)))
+        out.append({k: clean(v) for k, v in zip(("id", "created_at", "action_type", "action", "output"), rec)})
     for rec in run_sql(f"SELECT id, created_at, content FROM HANDOFF.promises WHERE id IN ({inlist})", limit=40):
-        out.append({"id": rec[0], "created_at": rec[1], "action_type": "chat", "action": (rec[2] or "")[:600], "output": ""})
+        out.append({"id": rec[0], "created_at": rec[1], "action_type": "chat", "action": clean(rec[2])[:600], "output": ""})
     return sorted(out, key=lambda r: str(r.get("created_at")))
+
+
+def memory_note(promise_id: str) -> dict:
+    """The agent's own memory note from the 24 hours after a promise, cut around the task's words.
+    It is the agent's account of itself: context for a reviewer, never evidence."""
+    from datetime import timedelta
+
+    from handoff.evidence import WORD
+    from handoff.goals import parse_ts
+
+    match = [r for r in rows() if r["id"] == promise_id]
+    if not match:
+        return {"found": False, "reason": "unknown promise id"}
+    p = match[0]
+    at = parse_ts(p["created_at"])
+    terms = [w for w in WORD.findall((p.get("task") or "").lower()) if len(w) > 4]
+    who = p["speaker"].replace("'", "''")
+    best = None
+    for rec in run_sql(
+        f"SELECT id, created_at, content FROM HANDOFF.memories WHERE slice_slug = '{p['slice']}' AND speaker = '{who}'",
+        limit=5000,
+    ):
+        ts = parse_ts(rec[1])
+        if not (at and ts and at < ts <= at + timedelta(hours=24)):
+            continue
+        text = rec[2] or ""
+        low = text.lower()
+        hits = [low.find(t) for t in terms if t in low]
+        if hits and (best is None or len(hits) > best[0]):
+            start = max(0, min(hits) - 250)
+            best = (len(hits), {"id": rec[0], "created_at": rec[1], "excerpt": clean(text[start:start + 700])})
+    if not best:
+        return {"found": False, "reason": "No memory note in the next 24 hours mentions this task."}
+    return {"found": True, "terms_matched": best[0], **best[1]}
 
 
 def remember_all() -> int:
@@ -167,9 +206,9 @@ def investigation() -> dict:
                 "from": r["speaker"],
                 "slice": r["slice"],
                 "at": r["created_at"],
-                "quote": r["quote"],
-                "task": r["task"],
-                "why": r["reason"],
+                "quote": clean(r["quote"]),
+                "task": clean(r["task"]),
+                "why": clean(r["reason"]),
                 "turn_ids": r["turn_ids"],
                 "turns_in_window": r["turns_in_window"],
                 "judge_model": r["judge_model"],

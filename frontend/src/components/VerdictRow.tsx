@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { citedTurns, sendFeedback, type Turn, type Verdict } from "../lib/api";
+import { citedTurns, memoryNote, sendFeedback, type MemoryNote, type Turn, type Verdict } from "../lib/api";
 
 export function VerdictRow({ v }: { v: Verdict }) {
   const [turns, setTurns] = useState<Turn[] | null>(null);
+  const [memo, setMemo] = useState<MemoryNote | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -10,10 +11,15 @@ export function VerdictRow({ v }: { v: Verdict }) {
   const ids = v.turn_ids || [];
 
   async function toggle() {
-    if (!open && turns === null && ids.length) {
+    if (!open && turns === null && v.id) {
       setBusy(true);
       try {
-        setTurns((await citedTurns(ids)).turns);
+        const [t, m] = await Promise.all([
+          ids.length ? citedTurns(ids) : Promise.resolve({ turns: [] as Turn[] }),
+          memoryNote(v.id),
+        ]);
+        setTurns(t.turns);
+        setMemo(m);
       } catch (err) {
         setNote(String(err));
       } finally {
@@ -52,11 +58,9 @@ export function VerdictRow({ v }: { v: Verdict }) {
       <p className="mt-1 text-sm text-zinc-500">{v.why}</p>
       {v.id && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {ids.length > 0 && (
-            <button type="button" className="btn-ghost" disabled={busy} onClick={toggle}>
-              {open ? "Hide evidence" : `Evidence (${ids.length})`}
-            </button>
-          )}
+          <button type="button" className="btn-ghost" disabled={busy} onClick={toggle}>
+            {open ? "Hide evidence" : `Evidence (${ids.length})`}
+          </button>
           <button type="button" className="btn-ghost" disabled={busy} onClick={() => review("helpful")}>
             Confirm
           </button>
@@ -67,15 +71,30 @@ export function VerdictRow({ v }: { v: Verdict }) {
       )}
       {note && <p className="mt-2 font-mono text-[11px] text-zinc-400">{note}</p>}
       {open && turns && (
-        <ol className="mt-3 space-y-2 border-l border-zinc-800 pl-3">
-          {turns.map((t) => (
-            <li key={t.id} className="font-mono text-[11px] leading-5 text-zinc-400">
-              <span className="text-zinc-500">{t.created_at?.slice(0, 16)} · {t.action_type}</span>
-              <p className="whitespace-pre-wrap break-words text-zinc-300">{t.action}</p>
-              {t.output && <p className="whitespace-pre-wrap break-words text-zinc-500">→ {t.output}</p>}
-            </li>
-          ))}
-        </ol>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-zinc-500">What the agent did · HANDOFF.cu_turns</p>
+            {turns.length === 0 && <p className="mt-2 text-sm text-zinc-500">No action was cited.</p>}
+            <ol className="mt-2 space-y-2 border-l border-zinc-800 pl-3">
+              {turns.map((t) => (
+                <li key={t.id} className="font-mono text-[11px] leading-5 text-zinc-400">
+                  <span className="text-zinc-500">{t.created_at?.slice(0, 16)} · {t.action_type}</span>
+                  <p className="whitespace-pre-wrap break-words text-zinc-300">{t.action}</p>
+                  {t.output && <p className="whitespace-pre-wrap break-words text-zinc-500">→ {t.output}</p>}
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+              What it wrote in its memory · HANDOFF.memories
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-600">The agent's own account. Context, not evidence.</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-[12px] leading-5 text-zinc-400">
+              {memo?.found ? memo.excerpt : memo?.reason}
+            </p>
+          </div>
+        </div>
       )}
     </li>
   );

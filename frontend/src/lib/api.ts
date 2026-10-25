@@ -124,6 +124,14 @@ export async function citedTurns(ids: string[]) {
   return res.json() as Promise<{ turns: Turn[] }>;
 }
 
+export type MemoryNote = { found: boolean; reason?: string; created_at?: string; excerpt?: string };
+
+export async function memoryNote(promiseId: string) {
+  const res = await fetch(`/api/memory_note?promise_id=${encodeURIComponent(promiseId)}`);
+  if (!res.ok) await readError(res);
+  return res.json() as Promise<MemoryNote>;
+}
+
 export async function sendFeedback(promiseId: string, kind: "helpful" | "wrong") {
   const fd = new FormData();
   fd.set("promise_id", promiseId);

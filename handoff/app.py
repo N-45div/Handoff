@@ -89,6 +89,16 @@ def turns(ids: str = Query("")) -> dict:
         raise HTTPException(status_code=502, detail=str(e)[:400]) from e
 
 
+@app.get("/api/memory_note")
+def memory_note(promise_id: str = Query(...)) -> dict:
+    from handoff.village import memory_note as note
+
+    try:
+        return note(promise_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)[:400]) from e
+
+
 @app.post("/api/feedback")
 def verdict_feedback(promise_id: str = Form(...), kind: str = Form(...)) -> dict:
     from handoff.hmem import _index, audit, feedback
