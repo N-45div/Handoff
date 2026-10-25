@@ -1,8 +1,7 @@
 """One door for every model call, through the Meterless Runtime (Nightshift) on this machine.
 
 Each step names an NVIDIA Nemotron model on NVIDIA's hosted endpoints, and every answer
-carries Meterless's signed compute receipt, which Handoff keeps next to the verdict. The
-private step only runs on meterless/local, so a pasted transcript never leaves the machine.
+carries Meterless's signed compute receipt, which Handoff keeps next to the verdict.
 Override a step's model with HANDOFF_<STEP>_MODEL. Nothing falls back silently: a failed
 call returns ok=False with the reason.
 """
@@ -26,7 +25,6 @@ STEPS = {
     "judge": {"model": "nvidia/nemotron-3-ultra-550b-a55b", "thinking": True},
     "why": {"model": "nvidia/nemotron-3-ultra-550b-a55b", "thinking": True},
     "vision": {"model": "meterless/vision", "thinking": False},
-    "private": {"model": "meterless/local", "thinking": False},
 }
 
 
@@ -95,8 +93,7 @@ def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: fl
     last = ""
     for attempt in range(5):
         try:
-            if not model.startswith("meterless/local"):
-                _pace()
+            _pace()
             req = Request(base + "/chat/completions", data=json.dumps(body).encode(), headers=req_headers, method="POST")
             t0 = time.time()
             with urlopen(req, timeout=240) as resp:
