@@ -1,23 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { health } from "../lib/api";
+import { health, type Health } from "../lib/api";
 
 export function Nav() {
-  const [live, setLive] = useState<string>("…");
+  const [status, setStatus] = useState<Health>({});
 
   useEffect(() => {
-    health()
-      .then((h) => setLive(h.zetaris ? "Zetaris live" : "Zetaris down"))
-      .catch(() => setLive("API down"));
+    health().then(setStatus).catch(() => setStatus({}));
   }, []);
 
   const link = ({ isActive }: { isActive: boolean }) =>
-    `text-[13px] tracking-wide uppercase ${isActive ? "text-white" : "text-zinc-400 hover:text-white"}`;
+    `text-[14px] ${isActive ? "text-[#f3efe6]" : "text-[#8d867a] hover:text-[#f3efe6]"}`;
+
+  const night = status.nightshift
+    ? "Nightshift live"
+    : status.nightshift_unauthorized
+      ? "Nightshift needs a token"
+      : "Nightshift off";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
-        <Link to="/" className="text-[15px] font-medium tracking-tight">
+    <header className="sticky top-0 z-20 border-b border-[#2a2722] bg-[#12110e]/90 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+        <Link to="/" className="font-serif text-[22px] tracking-tight">
           Handoff
         </Link>
         <nav className="flex items-center gap-6">
@@ -27,13 +31,12 @@ export function Nav() {
           <NavLink to="/desk" className={link}>
             Desk
           </NavLink>
-          <a
-            href="https://github.com/N-45div/Handoff"
-            className="text-[13px] uppercase tracking-wide text-zinc-400 hover:text-white"
-          >
-            GitHub
-          </a>
-          <span className="hidden font-mono text-[11px] text-zinc-500 sm:inline">{live}</span>
+          <span className="hidden font-mono text-[11px] text-[#8d867a] sm:inline">
+            {status.zetaris ? "Zetaris live" : "Zetaris down"} · {night}
+          </span>
+          <Link to="/desk?sample=coding" className="bg-[#f3efe6] px-3 py-1.5 text-[13px] font-semibold text-[#12110e]">
+            Build a task
+          </Link>
         </nav>
       </div>
     </header>
