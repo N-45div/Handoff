@@ -47,7 +47,7 @@ def wide_judge(p: dict) -> dict:
     return {"id": p["id"], "first": p["verdict"], "second": (parsed or {}).get("verdict") or "unclear",
             "reason": (parsed or {}).get("reason") or "", "shown": len(lines),
             "turn_ids": [i for i in (parsed or {}).get("turn_ids") or [] if i in known],
-            "model": res.get("model")}
+            "model": res.get("model"), "receipt": res.get("receipt")}
 
 
 def run_all(workers: int = 6) -> None:

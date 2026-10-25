@@ -119,6 +119,7 @@ def extract(row: dict) -> dict:
         "done_when": (parsed or {}).get("done_when") or "",
         "extract_model": res.get("model"),
         "extract_route": res.get("route"),
+        "extract_receipt": res.get("receipt"),
         "extract_error": None if res.get("ok") else res.get("error"),
     }
 
@@ -220,6 +221,7 @@ def judge(promise: dict) -> dict:
         "reason": (parsed or {}).get("reason") or (res.get("error") or "Judge reply was not JSON."),
         "judge_model": res.get("model"),
         "judge_route": res.get("route"),
+        "judge_receipt": res.get("receipt"),
         "judge_error": None if res.get("ok") else res.get("error"),
     }
 
@@ -238,7 +240,7 @@ def run(limit: int | None, workers: int) -> dict:
     print(f"{len(cands)} promise-like lines from Zetaris", file=sys.stderr)
 
     have = _done(ex_path)
-    todo = [c for c in cands if c["id"] not in have]
+    todo = [c for c in cands if c["id"] not in have or have[c["id"]].get("extract_error")]  # retry failures
     with ThreadPoolExecutor(workers) as pool:
         for i, row in enumerate(pool.map(extract, todo), 1):
             _append(ex_path, [row])
@@ -248,10 +250,16 @@ def run(limit: int | None, workers: int) -> dict:
     promises = [have[c["id"]] for c in cands if have[c["id"]].get("is_commitment")]
     print(f"{len(promises)} are concrete commitments", file=sys.stderr)
 
+    # Check ownership before judging, so no judge call is spent on another agent's task.
+    run_owner_check(workers, promises)
+    owner = _done(out_dir() / "owner.jsonl")
+    promises = [p for p in promises if owner.get(p["id"], {}).get("owns") is not False]
+    print(f"{len(promises)} are the speaker's own", file=sys.stderr, flush=True)
+
     for p in promises:  # warm the per-agent turn cache serially; Zetaris calls are heavy
         turns_for(p["slice"], p["speaker"])
     judged = _done(ju_path)
-    todo = [p for p in promises if p["id"] not in judged]
+    todo = [p for p in promises if p["id"] not in judged or judged[p["id"]].get("judge_error")]
     with ThreadPoolExecutor(workers) as pool:
         for i, row in enumerate(pool.map(judge, todo), 1):
             _append(ju_path, [row])
@@ -285,17 +293,21 @@ def owner_check(row: dict) -> dict:
         if parsed:
             break
     owns = None if parsed is None else bool(parsed.get("speaker_owns_task"))
-    return {"id": row["id"], "owns": owns, "model": res.get("model")}
+    return {"id": row["id"], "owns": owns, "model": res.get("model"), "receipt": res.get("receipt")}
 
 
-def run_owner_check(workers: int = 8) -> dict:
-    """Drop verdicts whose task belonged to another agent (a request, not a promise)."""
+def run_owner_check(workers: int = 8, rows: list[dict] | None = None) -> dict:
+    """Mark extractions whose task belonged to another agent (a request, not a promise)."""
     path = out_dir() / "owner.jsonl"
     done = _done(path)
-    judged = [json.loads(l) for l in (out_dir() / "judged.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    todo = [r for r in judged if r["id"] not in done]
+    if rows is None:
+        rows = list(_done(out_dir() / "judged.jsonl").values())
+    todo = [r for r in rows if r["id"] not in done or done[r["id"]].get("owns") is None]
     with ThreadPoolExecutor(workers) as pool:
-        _append(path, list(pool.map(owner_check, todo)))
+        for i, row in enumerate(pool.map(owner_check, todo), 1):
+            _append(path, [row])
+            if i % 100 == 0:
+                print(f"  owner-checked {i}/{len(todo)}", file=sys.stderr, flush=True)
     rows = _done(path).values()
     return {"checked": len(rows), "not_speakers_task": sum(1 for r in rows if r["owns"] is False),
             "unparsed": sum(1 for r in rows if r["owns"] is None)}
@@ -325,8 +337,13 @@ def apply_second_look(final: list[dict]) -> list[dict]:
         s = second.get(r["id"])
         if s and s.get("second") in ("kept", "partial", "not_done", "unclear"):
             r = {**r, "first_verdict": r["verdict"], "verdict": s["second"], "reason": s["reason"],
-                 "turn_ids": s.get("turn_ids") or [], "second_look": True}
+                 "turn_ids": s.get("turn_ids") or [], "second_look": True,
+                 "judge_model": s.get("model") or r.get("judge_model"), "judge_receipt": s.get("receipt")}
         out.append(r)
+    for r in out:
+        receipt = r.get("judge_receipt") or {}
+        r["receipt_id"] = receipt.get("receipt_id")
+        r["judge_ms"] = receipt.get("ms")
     return out
 
 
@@ -353,6 +370,7 @@ def summarize(final: list[dict]) -> dict:
         {k: str(r.get(k) if not isinstance(r.get(k), list) else json.dumps(r.get(k))) for k in COLUMNS}
         for r in final
     ]
+    (data_dir() / "slices").mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.Table.from_pylist(table), data_dir() / "slices" / "verdicts.parquet", compression="zstd")
     return summary
 
@@ -360,7 +378,7 @@ def summarize(final: list[dict]) -> dict:
 COLUMNS = (
     "id", "created_at", "speaker", "slice", "goal_title", "quote", "task", "done_when", "verdict",
     "reason", "turn_ids", "turns_in_window", "chat_in_window", "judge_model", "judge_route", "extract_model",
-    "first_verdict", "second_look",
+    "first_verdict", "second_look", "receipt_id", "judge_ms",
 )
 
 
