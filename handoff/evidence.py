@@ -340,7 +340,8 @@ def apply_second_look(final: list[dict]) -> list[dict]:
         if s and r["verdict"] == "not_done" and s.get("second") in ("kept", "partial", "not_done", "unclear"):
             r = {**r, "first_verdict": r["verdict"], "verdict": s["second"], "reason": s["reason"],
                  "turn_ids": s.get("turn_ids") or [], "second_look": True,
-                 "judge_model": s.get("model") or r.get("judge_model"), "judge_receipt": s.get("receipt")}
+                 "judge_model": s.get("model") or r.get("judge_model"), "judge_receipt": s.get("receipt"),
+                 "judge_route": "meterless" if (s.get("receipt") or {}).get("receipt_id") else "nebius-fallback"}
         out.append(r)
     for r in out:
         receipt = r.get("judge_receipt") or {}
