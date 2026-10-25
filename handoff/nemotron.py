@@ -38,7 +38,7 @@ def ping(timeout: float = 8) -> dict:
                 "error": "Nightshift is not running on 127.0.0.1:8088."}
 
 
-def why_paragraph(blob: dict) -> dict:
+def why_paragraph(blob: dict, private: bool = False) -> dict:
     slim = {
         "name": blob.get("name"),
         "counts": blob.get("counts"),
@@ -48,11 +48,14 @@ def why_paragraph(blob: dict) -> dict:
             if v.get("verdict") in ("dropped", "unclaimed")
         ][:10],
     }
-    res = chat("why", [{"role": "system", "content": WHY_SYSTEM},
-                       {"role": "user", "content": json.dumps(slim, ensure_ascii=False)}], max_tokens=2500)
+    res = chat("private" if private else "why",
+               [{"role": "system", "content": WHY_SYSTEM},
+                {"role": "user", "content": json.dumps(slim, ensure_ascii=False)}],
+               max_tokens=600 if private else 2500)
     if not res.get("ok") or not res.get("text"):
-        return {"ok": False, "skipped": True, "reason": "Nemotron did not answer through Meterless; the verdicts still stand.",
-                "error": res.get("error")}
+        reason = ("No local model is running in Nightshift, so the why was skipped; a private log never goes to a cloud."
+                  if private else "Nemotron did not answer through Meterless; the verdicts still stand.")
+        return {"ok": False, "skipped": True, "reason": reason, "error": res.get("error")}
     return {"ok": True, "skipped": False, "why": res["text"], "model": res.get("model"), "route": res.get("route"),
             "receipt": res.get("receipt")}
 

@@ -208,8 +208,35 @@ def pack(table: str, rows: list[dict], verdicts: list[dict], name: str) -> dict:
     }
 
 
-def attach_sponsors(blob: dict) -> dict:
-    """Recall prior stalls, store open promises, then ask Nemotron only about those rows."""
+def local_tasks(blob: dict, limit: int = 20) -> dict:
+    """Name the task in each promise of a pasted log with a local model through Meterless.
+    The log is the user's own data, so this step never leaves the machine."""
+    from handoff.evidence import EXTRACT_SYSTEM
+    from handoff.llm import chat, parse_json
+
+    receipts, done = [], 0
+    for v in blob.get("verdicts") or []:
+        if done >= limit or v.get("kind") != "commit":
+            continue
+        res = chat("private", [{"role": "system", "content": EXTRACT_SYSTEM},
+                               {"role": "user", "content": f"Speaker: {v.get('from')}\nMessage: {v.get('quote')}"}],
+                   max_tokens=120)
+        if not res.get("ok"):
+            return {"ok": False, "reason": "No local model is running in Nightshift; tasks were not named.",
+                    "error": res.get("error")}
+        parsed = parse_json(res.get("text", "")) or {}
+        v["task"] = parsed.get("task") or ""
+        v["local_receipt"] = (res.get("receipt") or {}).get("receipt_id")
+        receipts.append(res.get("receipt") or {})
+        done += 1
+    first = receipts[0] if receipts else {}
+    return {"ok": True, "named": done, "model": first.get("routed_model"), "kind": first.get("kind"),
+            "egress": first.get("egress"), "receipts": [r.get("receipt_id") for r in receipts]}
+
+
+def attach_sponsors(blob: dict, private: bool = False) -> dict:
+    """Recall prior stalls, store open promises, then ask Nemotron only about those rows.
+    A private (pasted) log is read by a local model instead, and nothing goes to a cloud."""
     from handoff.cache import save_investigation
     from handoff.hmem import recall, remember_open
     from handoff.nemotron import listing_blurb, why_paragraph
@@ -217,7 +244,9 @@ def attach_sponsors(blob: dict) -> dict:
     prior = recall(blob.get("name"))
     stored = remember_open(blob)
     blob["memory"] = {**prior, "stored_now": stored}
-    why = why_paragraph(blob)
+    if private:
+        blob["private"] = local_tasks(blob)
+    why = why_paragraph(blob, private=private)
     blob["nemotron"] = why
     blob["listing_blurb"] = listing_blurb(blob, why)
     slim = {k: v for k, v in blob.items() if k != "verdicts"}
@@ -235,7 +264,7 @@ def investigate_text(raw: str, swarm: str) -> dict:
         meta = ingest_text(raw, swarm)
         blob = investigate_table(meta["table"], swarm)
         blob["ingested"] = meta
-        return attach_sponsors(blob)
+        return attach_sponsors(blob, private=True)
     except ValueError:
         raise
     except Exception as e:
@@ -243,7 +272,7 @@ def investigate_text(raw: str, swarm: str) -> dict:
         blob = pack("memory", rows, score(rows), swarm)
         blob["warning"] = f"Zetaris register failed, scored in memory: {str(e)[:240]}"
         blob["engine"] = "memory-fallback"
-        return attach_sponsors(pack_improve(blob))
+        return attach_sponsors(pack_improve(blob), private=True)
 
 
 def _filter_weeks(weeks: list[dict]) -> list[dict]:

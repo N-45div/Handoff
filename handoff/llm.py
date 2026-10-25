@@ -27,6 +27,9 @@ STEPS = {
     "judge": {"model": "nvidia/nemotron-3-ultra-550b-a55b", "thinking": True},
     "why": {"model": "nvidia/nemotron-3-ultra-550b-a55b", "thinking": True},
     "vision": {"model": "meterless/vision", "thinking": False},
+    # A pasted log is the user's own data: it is read by a local model through Meterless
+    # (Nightshift's Extraction Grid pod) and never falls back to a cloud.
+    "private": {"model": "meterless/local", "thinking": False},
 }
 
 
@@ -148,9 +151,12 @@ def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: fl
     if not spec["thinking"]:
         body["chat_template_kwargs"] = {"enable_thinking": False}
     base, headers = _endpoint()
-    res, last = _try(base, headers, body, "meterless", tries=3, pace=True)
+    local = step == "private"
+    res, last = _try(base, headers, body, "meterless-local" if local else "meterless", tries=3, pace=not local)
     if res:
         return res
+    if local:
+        return {"ok": False, "route": "meterless-local", "model": model, "error": last}
     key = (os.environ.get("NEBIUS_API_KEY") or "").strip()
     if key and step in NEBIUS_MODELS:
         nb = os.environ.get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1").rstrip("/")
