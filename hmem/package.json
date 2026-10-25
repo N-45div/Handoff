@@ -1,0 +1,15 @@
+{
+  "name": "handoff-hmem",
+  "version": "0.1.0",
+  "description": "Handoff's case memory: the Meterless H-MEM reference engine behind a local HTTP port.",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "setup": "npx --yes degit meterless/meterless/engines/hmem/reference vendor/hmem && cd vendor/hmem && npm install --no-audit --no-fund",
+    "serve": "tsx server.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

@@ -27,3 +27,7 @@ __pycache__/
 *.pem
 .vercel
 *.tsbuildinfo
+
+# H-MEM helper
+/hmem/node_modules
+/hmem/vendor
