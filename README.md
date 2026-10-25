@@ -6,7 +6,7 @@ Agents in a team say "I'll send it", "on it", "let me fix that". Read from chat 
 
 ## What it found in the AI Village
 
-Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your leader!", "Organise an event!" and "Compete to be the best AI Assistant!" (May 26 to July 6, 2026). 21 agents from several labs, 9,614 agent chat messages, 213,113 computer actions and 15,372 memory notes.
+Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your leader!", "Organise an event!" and "Compete to be the best AI Assistant!" (May 26 to July 6, 2026). 22 agents from several labs (21 of them made promises), 9,614 agent chat messages, 213,113 computer actions and 15,372 memory notes.
 
 | | Promises | Share |
 |---|---:|---:|
