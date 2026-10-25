@@ -1,7 +1,9 @@
 """One door for every model call, through the Meterless Runtime (Nightshift) on this machine.
 
 Each step names an NVIDIA Nemotron model on NVIDIA's hosted endpoints, and every answer
-carries Meterless's signed compute receipt, which Handoff keeps next to the verdict.
+carries Meterless's signed compute receipt, which Handoff keeps next to the verdict. If
+Meterless keeps failing (NVIDIA's trial endpoints rate-limit hard), the same Nemotron model
+on Nebius answers instead and the result is marked route="nebius-fallback".
 Override a step's model with HANDOFF_<STEP>_MODEL. Nothing falls back silently: a failed
 call returns ok=False with the reason.
 """
@@ -80,52 +82,85 @@ def _pace() -> None:
         time.sleep(wait)
 
 
-def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: float = 0.1) -> dict:
-    load_env()
-    spec = STEPS[step]
-    route = route_for(step)
-    model = os.environ.get(f"HANDOFF_{step.upper()}_MODEL") or spec["model"]
-    base, headers = _endpoint(route)
-    body: dict = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
-    if not spec["thinking"]:
-        body["chat_template_kwargs"] = {"enable_thinking": False}
-    req_headers = {"Content-Type": "application/json", **headers}
+# The same Nemotron models hosted on Nebius Token Factory. Used only when Meterless to NVIDIA
+# keeps failing (NVIDIA's trial endpoints rate-limit hard); the verdict records the fallback.
+NEBIUS_MODELS = {
+    "extract": "nvidia/Nemotron-3_5-Lightning",
+    "judge": "nvidia/Nemotron-3-Ultra-550b-a55b",
+    "why": "nvidia/Nemotron-3-Ultra-550b-a55b",
+    "vision": "nvidia/Nemotron-3.5-Super-VL",
+}
+
+
+def _post(base: str, headers: dict, body: dict) -> tuple[dict, float]:
+    req = Request(base + "/chat/completions", data=json.dumps(body).encode(),
+                  headers={"Content-Type": "application/json", **headers}, method="POST")
+    t0 = time.time()
+    with urlopen(req, timeout=240) as resp:
+        return json.loads(resp.read().decode() or "{}"), time.time() - t0
+
+
+def _answer(out: dict, route: str, model: str, seconds: float) -> dict:
+    choice = (out.get("choices") or [{}])[0].get("message") or {}
+    receipt = receipt_of(out)
+    return {
+        "ok": True,
+        "text": strip_think(str(choice.get("content") or "")),
+        "route": route,
+        "model": (receipt or {}).get("routed_model") or out.get("model") or model,
+        "seconds": round(seconds, 2),
+        "usage": out.get("usage") or {},
+        "receipt": receipt,
+    }
+
+
+def _try(base: str, headers: dict, body: dict, route: str, tries: int, pace: bool) -> tuple[dict | None, str]:
     last = ""
-    for attempt in range(5):
+    for attempt in range(tries):
         try:
-            _pace()
-            req = Request(base + "/chat/completions", data=json.dumps(body).encode(), headers=req_headers, method="POST")
-            t0 = time.time()
-            with urlopen(req, timeout=240) as resp:
-                out = json.loads(resp.read().decode() or "{}")
-            choice = (out.get("choices") or [{}])[0].get("message") or {}
-            text = strip_think(str(choice.get("content") or ""))
-            receipt = receipt_of(out)
-            return {
-                "ok": True,
-                "text": text,
-                "route": route,
-                "model": (receipt or {}).get("routed_model") or out.get("model") or model,
-                "seconds": round(time.time() - t0, 2),
-                "usage": out.get("usage") or {},
-                "receipt": receipt,
-            }
+            if pace:
+                _pace()
+            out, seconds = _post(base, headers, body)
+            return _answer(out, route, body["model"], seconds), ""
         except HTTPError as e:
             detail = e.read().decode(errors="replace")
             last = f"HTTP {e.code}: {detail[:200]}"
             # NVIDIA's trial endpoints cap requests per minute; Meterless passes that
             # back as a 502 whose detail says nvidia_429.
             if e.code == 429 or "_429" in detail or '"status":429' in detail:
-                time.sleep(10 * (attempt + 1))
+                time.sleep(5 * (attempt + 1))
                 continue
             if e.code in (500, 502, 503, 504):
                 time.sleep(2 * (attempt + 1))
                 continue
             break
-        except (URLError, OSError) as e:
+        except OSError as e:
             last = str(getattr(e, "reason", e))[:200]
             time.sleep(2 * (attempt + 1))
-    return {"ok": False, "route": route, "model": model, "error": last}
+    return None, last
+
+
+def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: float = 0.1) -> dict:
+    load_env()
+    spec = STEPS[step]
+    model = os.environ.get(f"HANDOFF_{step.upper()}_MODEL") or spec["model"]
+    body: dict = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+    if not spec["thinking"]:
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    base, headers = _endpoint()
+    res, last = _try(base, headers, body, "meterless", tries=3, pace=True)
+    if res:
+        return res
+    key = (os.environ.get("NEBIUS_API_KEY") or "").strip()
+    if key and step in NEBIUS_MODELS:
+        nb = os.environ.get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1").rstrip("/")
+        res, nlast = _try(nb, {"Authorization": f"Bearer {key}"}, {**body, "model": NEBIUS_MODELS[step]},
+                          "nebius-fallback", tries=3, pace=False)
+        if res:
+            res["fallback_reason"] = last
+            return res
+        last = f"{last} | fallback: {nlast}"
+    return {"ok": False, "route": "meterless", "model": model, "error": last}
 
 
 _PROBE: dict = {"at": 0.0, "out": None}
