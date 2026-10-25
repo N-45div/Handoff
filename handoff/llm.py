@@ -87,6 +87,32 @@ def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: fl
     return {"ok": False, "route": route, "model": model, "error": last}
 
 
+_PROBE: dict = {"at": 0.0, "out": None}
+
+
+def meterless_ready(max_age: float = 60) -> dict:
+    """One-token probe on meterless/fast (ready models only, so it never starts a model load).
+    Cached for a minute; Meterless has no provider-status endpoint to read instead."""
+    if _PROBE["out"] is not None and time.time() - _PROBE["at"] < max_age:
+        return _PROBE["out"]
+    load_env()
+    base, headers = _endpoint("meterless")
+    body = {"model": "meterless/fast", "messages": [{"role": "user", "content": "ok"}], "max_tokens": 1}
+    try:
+        req = Request(base + "/chat/completions", data=json.dumps(body).encode(),
+                      headers={"Content-Type": "application/json", **headers}, method="POST")
+        with urlopen(req, timeout=8):
+            out = {"up": True, "provider": True}
+    except HTTPError as e:
+        detail = e.read().decode(errors="replace")
+        out = {"up": True, "provider": "no_provider_configured" not in detail,
+               "reason": "No provider in Nightshift yet" if "no_provider_configured" in detail else f"HTTP {e.code}"}
+    except (URLError, OSError):
+        out = {"up": False, "provider": False, "reason": "Nightshift is not running"}
+    _PROBE.update(at=time.time(), out=out)
+    return out
+
+
 def strip_think(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
 

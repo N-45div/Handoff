@@ -57,6 +57,9 @@ export type Investigate = {
 
 export type Health = {
   zetaris?: boolean;
+  meterless_provider?: boolean;
+  meterless_reason?: string;
+  hmem?: boolean;
   nightshift?: boolean;
   nightshift_unauthorized?: boolean;
   nightshift_error?: string;

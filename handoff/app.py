@@ -50,10 +50,14 @@ def health() -> dict:
     from handoff.nemotron import ping as night_ping
 
     from handoff.hmem import health as hmem_health
+    from handoff.llm import meterless_ready
 
     night = night_ping(timeout=2)
     mem = hmem_health()
+    ready = meterless_ready()
     out = {
+        "meterless_provider": bool(ready.get("provider")),
+        "meterless_reason": ready.get("reason"),
         "nightshift": bool(night.get("ok")),
         "nightshift_unauthorized": bool(night.get("unauthorized")),
         "nightshift_error": night.get("error"),

@@ -12,11 +12,10 @@ export function Nav() {
   const link = ({ isActive }: { isActive: boolean }) =>
     `text-[14px] ${isActive ? "text-[#f3efe6]" : "text-[#8d867a] hover:text-[#f3efe6]"}`;
 
-  const night = status.nightshift
-    ? "Nightshift live"
-    : status.nightshift_unauthorized
-      ? "Nightshift needs a token"
-      : "Nightshift off";
+  let night = "Meterless off";
+  if (status.nightshift_unauthorized) night = "Meterless needs a token";
+  else if (status.nightshift && status.meterless_provider) night = "Meterless live";
+  else if (status.nightshift) night = "Meterless: no provider";
 
   return (
     <header className="sticky top-0 z-20 border-b border-[#2a2722] bg-[#12110e]/90 backdrop-blur">
@@ -34,8 +33,8 @@ export function Nav() {
           <span className="hidden font-mono text-[11px] text-[#8d867a] sm:inline">
             {status.zetaris ? "Zetaris live" : "Zetaris down"} · {night}
           </span>
-          <Link to="/desk?sample=coding" className="bg-[#f3efe6] px-3 py-1.5 text-[13px] font-semibold text-[#12110e]">
-            Build a task
+          <Link to="/desk" className="bg-[#f3efe6] px-3 py-1.5 text-[13px] font-semibold text-[#12110e]">
+            Open the desk
           </Link>
         </nav>
       </div>
