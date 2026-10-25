@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { citedTurns, memoryNote, sendFeedback, type MemoryNote, type Turn, type Verdict } from "../lib/api";
 
+function evidenceLabel(n: number) {
+  if (n === 0) return "Evidence";
+  return `Evidence · ${n} ${n === 1 ? "action" : "actions"}`;
+}
+
 export function VerdictRow({ v }: { v: Verdict }) {
   const [turns, setTurns] = useState<Turn[] | null>(null);
   const [memo, setMemo] = useState<MemoryNote | null>(null);
@@ -59,7 +64,7 @@ export function VerdictRow({ v }: { v: Verdict }) {
       {v.id && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className="btn-ghost" disabled={busy} onClick={toggle}>
-            {open ? "Hide evidence" : ids.length ? `Evidence · ${ids.length} actions` : "Evidence"}
+            {open ? "Hide evidence" : evidenceLabel(ids.length)}
           </button>
           <button type="button" className="btn-ghost" disabled={busy} onClick={() => review("helpful")}>
             Confirm
