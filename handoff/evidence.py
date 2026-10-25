@@ -262,7 +262,29 @@ def run(limit: int | None, workers: int) -> dict:
     return summarize(final)
 
 
+def apply_second_look(final: list[dict]) -> list[dict]:
+    """Every not_done verdict was judged again with a wider view; that verdict is final."""
+    path = out_dir() / "second.jsonl"
+    if not path.is_file():
+        return final
+    second = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            row = json.loads(line)
+            if row.get("reason"):  # an empty reply keeps the first verdict
+                second[row["id"]] = row
+    out = []
+    for r in final:
+        s = second.get(r["id"])
+        if s and s.get("second") in ("kept", "partial", "not_done", "unclear"):
+            r = {**r, "first_verdict": r["verdict"], "verdict": s["second"], "reason": s["reason"],
+                 "turn_ids": s.get("turn_ids") or [], "second_look": True}
+        out.append(r)
+    return out
+
+
 def summarize(final: list[dict]) -> dict:
+    final = apply_second_look(final)
     counts = Counter(r["verdict"] for r in final)
     by_slice: dict[str, Counter] = {}
     for r in final:
@@ -270,6 +292,10 @@ def summarize(final: list[dict]) -> dict:
     summary = {
         "promises": len(final),
         "counts": dict(counts),
+        "second_look": {
+            "checked": sum(1 for r in final if r.get("second_look")),
+            "changed": sum(1 for r in final if r.get("second_look") and r["verdict"] != r["first_verdict"]),
+        },
         "weeks": {k: dict(v) for k, v in by_slice.items()},
         "rule": "Only executed actions and tool output count; narration never proves a promise.",
     }
@@ -285,6 +311,7 @@ def summarize(final: list[dict]) -> dict:
 COLUMNS = (
     "id", "created_at", "speaker", "slice", "goal_title", "quote", "task", "done_when", "verdict",
     "reason", "turn_ids", "turns_in_window", "chat_in_window", "judge_model", "judge_route", "extract_model",
+    "first_verdict", "second_look",
 )
 
 
@@ -292,7 +319,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--summarize", action="store_true", help="rebuild the summary and Parquet from saved verdicts")
     args = ap.parse_args()
+    if args.summarize:
+        judged = [json.loads(l) for l in (out_dir() / "judged.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+        print(json.dumps(summarize(judged), indent=2))
+        return
     print(json.dumps(run(args.limit, args.workers), indent=2))
 
 
