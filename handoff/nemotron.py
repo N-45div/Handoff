@@ -23,29 +23,54 @@ def _base() -> str:
     return os.environ.get("METERLESS_BASE_URL", "http://127.0.0.1:8088/v1").rstrip("/")
 
 
-def _headers() -> dict:
+def _headers(scope: str | None = None) -> dict:
     load_env()
-    headers = {"Content-Type": "application/json"}
-    token = os.environ.get("METERLESS_TOKEN")
-    if token:
+    headers = {
+        "Content-Type": "application/json",
+        "meterless-app": os.environ.get("METERLESS_APP", "handoff"),
+    }
+    token = (os.environ.get("METERLESS_TOKEN") or "").strip()
+    if token and token != "rt-local":
         headers["Authorization"] = f"Bearer {token}"
+    if scope:
+        headers["meterless-scope"] = scope
     return headers
 
 
-def ping() -> dict:
+def ping(timeout: float = 8) -> dict:
     url = _base() + "/models"
     try:
         req = Request(url, headers=_headers(), method="GET")
-        with urlopen(req, timeout=8) as resp:
+        with urlopen(req, timeout=timeout) as resp:
             body = json.loads(resp.read().decode() or "{}")
-        return {"ok": True, "models": body}
+        ids = []
+        for item in body.get("data") or []:
+            mid = item.get("id") if isinstance(item, dict) else None
+            if mid:
+                ids.append(mid)
+        return {"ok": True, "unauthorized": False, "models": ids[:12], "url": url}
+    except HTTPError as e:
+        if e.code in (401, 403):
+            return {
+                "ok": False,
+                "unauthorized": True,
+                "error": "Nightshift is up but rejected the token. Paste the real proxy token into METERLESS_TOKEN. rt-local is rejected.",
+                "url": url,
+            }
+        return {"ok": False, "unauthorized": False, "error": f"HTTP {e.code}", "url": url}
     except Exception as e:
-        return {"ok": False, "error": str(e)[:240], "url": url}
+        return {
+            "ok": False,
+            "unauthorized": False,
+            "error": "Nightshift is not running on 127.0.0.1:8088. Start the Windows hotspot, then retry.",
+            "detail": str(e)[:180],
+            "url": url,
+        }
 
 
 def _complete(messages: list[dict], model: str | None = None) -> str:
     load_env()
-    model = model or os.environ.get("METERLESS_MODEL") or "nvidia/nemotron"
+    model = model or os.environ.get("METERLESS_MODEL") or "meterless/deep"
     body = {
         "model": model,
         "messages": messages,
@@ -55,10 +80,10 @@ def _complete(messages: list[dict], model: str | None = None) -> str:
     req = Request(
         _base() + "/chat/completions",
         data=json.dumps(body).encode(),
-        headers=_headers(),
+        headers=_headers(scope="user"),
         method="POST",
     )
-    with urlopen(req, timeout=60) as resp:
+    with urlopen(req, timeout=180) as resp:
         out = json.loads(resp.read().decode() or "{}")
     choices = out.get("choices") or []
     if not choices:
@@ -108,6 +133,23 @@ def why_paragraph(blob: dict) -> dict:
         }
 
 
+def listing_blurb(blob: dict, why: dict | None = None) -> dict:
+    """One sentence a catalog row can show. Only after a cited why, never instead of SQL."""
+    if not why or not why.get("ok"):
+        return {
+            "ok": False,
+            "skipped": True,
+            "reason": (why or {}).get("reason") or "Why paragraph was skipped, so the listing blurb was too.",
+        }
+    counts = blob.get("counts") or {}
+    sentence = (
+        f"{blob.get('name') or 'This swarm'}: "
+        f"{counts.get('dropped', 0)} dropped, {counts.get('unclaimed', 0)} unclaimed, "
+        f"{counts.get('kept', 0)} kept. {why.get('why')}"
+    )
+    return {"ok": True, "skipped": False, "text": sentence[:420]}
+
+
 def vl_screen(prompt: str, image_url: str | None = None) -> dict:
     pinged = ping()
     if not pinged.get("ok"):
@@ -137,7 +179,7 @@ def vl_screen(prompt: str, image_url: str | None = None) -> dict:
     try:
         text = _complete(
             [{"role": "user", "content": content}],
-            model=os.environ.get("METERLESS_VL_MODEL") or "nvidia/nemotron-super-vl",
+            model=os.environ.get("METERLESS_VL_MODEL") or "meterless/deep",
         )
         return {"ok": True, "skipped": False, "verdict": text}
     except (HTTPError, URLError, OSError, RuntimeError) as e:

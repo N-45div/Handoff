@@ -22,11 +22,13 @@ def cases_path() -> Path:
     return path
 
 
-def remember_open(blob: dict) -> int:
+def remember_open(blob: dict, limit: int = 40) -> int:
     n = 0
     path = cases_path()
     with path.open("a", encoding="utf-8") as fh:
         for v in blob.get("verdicts") or []:
+            if n >= limit:
+                break
             if v.get("verdict") not in ("dropped", "unclaimed"):
                 continue
             case = {
