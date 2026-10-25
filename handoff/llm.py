@@ -117,8 +117,13 @@ def _answer(out: dict, route: str, model: str, seconds: float) -> dict:
     }
 
 
+_DOWN_UNTIL = {"meterless": 0.0}
+
+
 def _try(base: str, headers: dict, body: dict, route: str, tries: int, pace: bool) -> tuple[dict | None, str]:
     last = ""
+    if route.startswith("meterless") and time.time() < _DOWN_UNTIL["meterless"]:
+        return None, "Meterless was unreachable a moment ago; skipped for 60 s"
     for attempt in range(tries):
         try:
             if pace:
@@ -139,6 +144,9 @@ def _try(base: str, headers: dict, body: dict, route: str, tries: int, pace: boo
             break
         except OSError as e:
             last = str(getattr(e, "reason", e))[:200]
+            if route.startswith("meterless") and "10061" in last:  # nothing listening: Nightshift is not running
+                _DOWN_UNTIL["meterless"] = time.time() + 60
+                break
             time.sleep(2 * (attempt + 1))
     return None, last
 
