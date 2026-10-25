@@ -1,12 +1,13 @@
-"""NVIDIA Nemotron via Meterless Nightshift. Never used as the query engine."""
+"""NVIDIA Nemotron through the Meterless Runtime (Nightshift). Never used as the query engine."""
 
 from __future__ import annotations
 
 import json
 import os
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from handoff.llm import _endpoint, chat
 from handoff.zetaris import load_env
 
 WHY_SYSTEM = (
@@ -14,133 +15,53 @@ WHY_SYSTEM = (
     "Write one short paragraph explaining why this swarm stalled. "
     "Use only the JSON you are given. Quote speaker names. "
     "Do not invent tables, people, or events. "
-    "Alibi is prior work that audits past claims; you score promises between agents."
+    "These verdicts come from chat only, so say that the actions were not checked."
 )
 
 
-def _base() -> str:
-    load_env()
-    return os.environ.get("METERLESS_BASE_URL", "http://127.0.0.1:8088/v1").rstrip("/")
-
-
-def _headers(scope: str | None = None) -> dict:
-    load_env()
-    headers = {
-        "Content-Type": "application/json",
-        "meterless-app": os.environ.get("METERLESS_APP", "handoff"),
-    }
-    token = (os.environ.get("METERLESS_TOKEN") or "").strip()
-    if token and token != "rt-local":
-        headers["Authorization"] = f"Bearer {token}"
-    if scope:
-        headers["meterless-scope"] = scope
-    return headers
-
-
 def ping(timeout: float = 8) -> dict:
-    url = _base() + "/models"
+    load_env()
+    base, headers = _endpoint()
+    url = base + "/models"
     try:
-        req = Request(url, headers=_headers(), method="GET")
-        with urlopen(req, timeout=timeout) as resp:
+        with urlopen(Request(url, headers=headers, method="GET"), timeout=timeout) as resp:
             body = json.loads(resp.read().decode() or "{}")
-        ids = []
-        for item in body.get("data") or []:
-            mid = item.get("id") if isinstance(item, dict) else None
-            if mid:
-                ids.append(mid)
+        ids = [m.get("id") for m in body.get("data") or [] if isinstance(m, dict) and m.get("id")]
         return {"ok": True, "unauthorized": False, "models": ids[:12], "url": url}
     except HTTPError as e:
         if e.code in (401, 403):
-            return {
-                "ok": False,
-                "unauthorized": True,
-                "error": "Nightshift is up but rejected the token. Paste the real proxy token into METERLESS_TOKEN. rt-local is rejected.",
-                "url": url,
-            }
+            return {"ok": False, "unauthorized": True, "url": url,
+                    "error": "Nightshift is up but rejected the token. Put the proxy token in METERLESS_TOKEN."}
         return {"ok": False, "unauthorized": False, "error": f"HTTP {e.code}", "url": url}
-    except Exception as e:
-        return {
-            "ok": False,
-            "unauthorized": False,
-            "error": "Nightshift is not running on 127.0.0.1:8088. Start the Windows hotspot, then retry.",
-            "detail": str(e)[:180],
-            "url": url,
-        }
-
-
-def _complete(messages: list[dict], model: str | None = None) -> str:
-    load_env()
-    model = model or os.environ.get("METERLESS_MODEL") or "meterless/deep"
-    body = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.2,
-        "max_tokens": 280,
-    }
-    req = Request(
-        _base() + "/chat/completions",
-        data=json.dumps(body).encode(),
-        headers=_headers(scope="user"),
-        method="POST",
-    )
-    with urlopen(req, timeout=180) as resp:
-        out = json.loads(resp.read().decode() or "{}")
-    choices = out.get("choices") or []
-    if not choices:
-        raise RuntimeError("Nightshift returned no choices")
-    return str(choices[0].get("message", {}).get("content") or "").strip()
+    except OSError as e:
+        return {"ok": False, "unauthorized": False, "url": url, "detail": str(e)[:180],
+                "error": "Nightshift is not running on 127.0.0.1:8088."}
 
 
 def why_paragraph(blob: dict) -> dict:
-    pinged = ping()
-    if not pinged.get("ok"):
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": "Meterless Nightshift is down; Nemotron why skipped.",
-            "error": pinged.get("error"),
-        }
     slim = {
         "name": blob.get("name"),
-        "source": blob.get("source"),
         "counts": blob.get("counts"),
-        "weeks": blob.get("weeks"),
         "open": [
-            {
-                "verdict": v.get("verdict"),
-                "from": v.get("from"),
-                "slice": v.get("slice"),
-                "quote": v.get("quote"),
-            }
+            {"verdict": v.get("verdict"), "from": v.get("from"), "quote": v.get("quote")}
             for v in (blob.get("verdicts") or [])
             if v.get("verdict") in ("dropped", "unclaimed")
         ][:10],
     }
-    try:
-        text = _complete(
-            [
-                {"role": "system", "content": WHY_SYSTEM},
-                {"role": "user", "content": json.dumps(slim, ensure_ascii=False)},
-            ]
-        )
-        return {"ok": True, "skipped": False, "model": "nemotron-via-meterless", "why": text}
-    except (HTTPError, URLError, OSError, RuntimeError) as e:
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": "Nemotron call failed; Zetaris verdicts still stand.",
-            "error": str(e)[:240],
-        }
+    res = chat("why", [{"role": "system", "content": WHY_SYSTEM},
+                       {"role": "user", "content": json.dumps(slim, ensure_ascii=False)}], max_tokens=2500)
+    if not res.get("ok") or not res.get("text"):
+        return {"ok": False, "skipped": True, "reason": "Nemotron did not answer through Meterless; the verdicts still stand.",
+                "error": res.get("error")}
+    return {"ok": True, "skipped": False, "why": res["text"], "model": res.get("model"), "route": res.get("route"),
+            "receipt": res.get("receipt")}
 
 
 def listing_blurb(blob: dict, why: dict | None = None) -> dict:
     """One sentence a catalog row can show. Only after a cited why, never instead of SQL."""
     if not why or not why.get("ok"):
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": (why or {}).get("reason") or "Why paragraph was skipped, so the listing blurb was too.",
-        }
+        return {"ok": False, "skipped": True,
+                "reason": (why or {}).get("reason") or "Why paragraph was skipped, so the listing blurb was too."}
     counts = blob.get("counts") or {}
     sentence = (
         f"{blob.get('name') or 'This swarm'}: "
@@ -151,41 +72,19 @@ def listing_blurb(blob: dict, why: dict | None = None) -> dict:
 
 
 def vl_screen(prompt: str, image_url: str | None = None) -> dict:
-    pinged = ping()
-    if not pinged.get("ok"):
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": "Nightshift VL down; screen proof skipped.",
-            "error": pinged.get("error"),
-        }
     if not image_url:
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": "No screen path for this silent drop; did not download computer_use_turns (2.8GB).",
-        }
+        return {"ok": False, "skipped": True, "reason": "No screenshot for this promise."}
     content = [
-        {
-            "type": "text",
-            "text": (
-                "Does this screen show the promised work? Answer yes, no, or unclear, "
-                "then one sentence. Promise: "
-                + prompt[:400]
-            ),
-        },
+        {"type": "text", "text": "Does this screen show the promised work? Answer yes, no, or unclear, then one sentence. Promise: " + prompt[:400]},
         {"type": "image_url", "image_url": {"url": image_url}},
     ]
-    try:
-        text = _complete(
-            [{"role": "user", "content": content}],
-            model=os.environ.get("METERLESS_VL_MODEL") or "meterless/deep",
-        )
-        return {"ok": True, "skipped": False, "verdict": text}
-    except (HTTPError, URLError, OSError, RuntimeError) as e:
-        return {
-            "ok": False,
-            "skipped": True,
-            "reason": "Nemotron Super-VL failed; not faked.",
-            "error": str(e)[:240],
-        }
+    res = chat("vision", [{"role": "user", "content": content}], max_tokens=300)
+    if not res.get("ok"):
+        return {"ok": False, "skipped": True, "reason": "No vision lane in Meterless; screen proof skipped, not faked.",
+                "error": res.get("error")}
+    return {"ok": True, "skipped": False, "verdict": res.get("text"), "receipt": res.get("receipt")}
+
+
+if __name__ == "__main__":
+    print(json.dumps(ping(), indent=2))
+    print(os.environ.get("METERLESS_BASE_URL", "http://127.0.0.1:8088/v1"))
