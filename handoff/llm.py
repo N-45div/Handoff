@@ -184,11 +184,14 @@ def chat(step: str, messages: list[dict], max_tokens: int = 400, temperature: fl
         body["chat_template_kwargs"] = {"enable_thinking": False}
     base, headers = _endpoint()
     local = step == "private"
-    res, last = _try(base, headers, body, "meterless-local" if local else "meterless", tries=3, pace=not local)
+    # HANDOFF_NO_FALLBACK=1: Meterless only, waiting out NVIDIA's rate limit instead of falling back.
+    no_fallback = os.environ.get("HANDOFF_NO_FALLBACK") == "1"
+    res, last = _try(base, headers, body, "meterless-local" if local else "meterless",
+                     tries=8 if no_fallback else 3, pace=not local)
     if res:
         return res
-    if local:
-        return {"ok": False, "route": "meterless-local", "model": model, "error": last}
+    if local or no_fallback:
+        return {"ok": False, "route": "meterless-local" if local else "meterless", "model": model, "error": last}
     key = (os.environ.get("NEBIUS_API_KEY") or "").strip()
     if key and step in NEBIUS_MODELS:
         nb = os.environ.get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1").rstrip("/")

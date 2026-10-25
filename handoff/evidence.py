@@ -335,7 +335,9 @@ def apply_second_look(final: list[dict]) -> list[dict]:
     out = []
     for r in final:
         s = second.get(r["id"])
-        if s and s.get("second") in ("kept", "partial", "not_done", "unclear"):
+        # Only a not_done first verdict gets a second look; a re-judged first verdict that is no
+        # longer not_done must not be overridden by an older second look.
+        if s and r["verdict"] == "not_done" and s.get("second") in ("kept", "partial", "not_done", "unclear"):
             r = {**r, "first_verdict": r["verdict"], "verdict": s["second"], "reason": s["reason"],
                  "turn_ids": s.get("turn_ids") or [], "second_look": True,
                  "judge_model": s.get("model") or r.get("judge_model"), "judge_receipt": s.get("receipt")}
