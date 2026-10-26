@@ -159,7 +159,9 @@ def words(text: str) -> set[str]:
     return {w for w in WORD.findall(text.lower()) if w not in STOP}
 
 
-def rank(promise: dict, turns: list[dict], top: int = 10) -> list[dict]:
+def rank(promise: dict, turns: list[dict], top: int = 10, first: int = 0) -> list[dict]:
+    """The turns to show the judge: the best keyword matches, plus the first `first` turns after
+    the promise (the work often comes right next and shares no words with the promise)."""
     want = words(f"{promise['task']} {promise['done_when']}")
     scored = []
     for t in turns:
@@ -168,6 +170,9 @@ def rank(promise: dict, turns: list[dict], top: int = 10) -> list[dict]:
     best = [t for hit, t in sorted(scored, key=lambda x: -x[0])[:top] if hit > 0]
     if len(best) < 4:
         best += [t for t in turns[:4] if t not in best]
+    if first:
+        lead = turns[:first]
+        best = lead + [t for t in best if t not in lead]
     return sorted(best[:top], key=lambda t: t["ts"])
 
 
@@ -186,10 +191,12 @@ def judge(promise: dict) -> dict:
     return judge_window(promise, window, base)
 
 
-def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14, max_tokens: int = 2500) -> dict:
+def judge_window(
+    promise: dict, window: list[dict], base: dict, top: int = 14, max_tokens: int = 2500, first: int = 0
+) -> dict:
     """Ask the judge for a verdict on one promise, given the agent's later turns (actions and chat)."""
     at = parse_ts(promise["created_at"])
-    shown = rank(promise, window, top=top)
+    shown = rank(promise, window, top=top, first=first)
     lines = []
     for t in shown:
         mins = int((t["ts"] - at).total_seconds() // 60)
@@ -228,7 +235,7 @@ def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14, m
         "judge_model": res.get("model"),
         "judge_route": res.get("route"),
         "judge_receipt": res.get("receipt"),
-        "judge_error": None if res.get("ok") else res.get("error"),
+        "judge_error": None if parsed else (res.get("error") or "reply was not JSON"),
     }
 
 

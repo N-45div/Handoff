@@ -43,6 +43,11 @@ AHEAD = re.compile(
     re.I,
 )
 
+# Offers that only apply if someone asks are not promises; the model does not always drop them.
+CONDITIONAL = re.compile(
+    r"\bif (?:requested|asked|needed|wanted|you (?:want|like|prefer)|[\w-]+ (?:requests?|asks?|wants?))\b", re.I
+)
+
 TRACE_EXTRACT_SYSTEM = (
     "You read one message from an AI agent's work log: text it wrote while working, or a message it "
     "sent to a person or another agent. List every concrete task the SPEAKER commits to doing "
@@ -112,7 +117,10 @@ def extract_all(row: dict) -> tuple[list[dict], str | None]:
         max_tokens=300,
     )
     parsed = parse_json(res.get("text", "")) if res.get("ok") else None
-    items = [c for c in (parsed or {}).get("commitments") or [] if isinstance(c, dict) and c.get("task")][:3]
+    items = [
+        c for c in (parsed or {}).get("commitments") or []
+        if isinstance(c, dict) and c.get("task") and not CONDITIONAL.search(c["task"])
+    ][:3]
     base = {
         "source_id": row["id"], "created_at": row["created_at"], "speaker": row["speaker"],
         "slice": row["slice_slug"], "goal_title": row.get("goal_title"), "quote": row["content"][:400],
@@ -127,7 +135,9 @@ def extract_all(row: dict) -> tuple[list[dict], str | None]:
     return promises, None if res.get("ok") else res.get("error")
 
 
-def _judge(promise: dict, talk: list[dict], actions: list[dict], top: int = 14, max_tokens: int = 2500) -> dict:
+def _judge(
+    promise: dict, talk: list[dict], actions: list[dict], top: int = 14, max_tokens: int = 2500, first: int = 6
+) -> dict:
     at = parse_ts(promise["created_at"])
     own_send = promise["source_id"].split(":msg")[0]
     later = [
@@ -147,18 +157,19 @@ def _judge(promise: dict, talk: list[dict], actions: list[dict], top: int = 14, 
     if not window:
         return {**base, "verdict": "unclear", "turn_ids": [], "judge_model": None, "judge_route": "rule",
                 "reason": "The trace ends before this agent does anything after the promise."}
-    return judge_window(promise, window, base, top=top, max_tokens=max_tokens)
+    return judge_window(promise, window, base, top=top, max_tokens=max_tokens, first=first)
 
 
 def second_look(verdicts: list[dict], promises: list[dict], talk: list[dict], actions: list[dict], workers: int) -> int:
-    """Judge every model-made not_done again with 60 actions instead of 14, as the Village run does.
+    """Judge every model-made not_done again with 60 actions instead of 14 (the 20 right after the
+    promise always among them), as the Village run does.
 
     A narrow first pass can miss the one action that shows the work. Returns how many changed.
     """
     todo = [(i, p) for i, (p, v) in enumerate(zip(promises, verdicts))
             if v["verdict"] == "not_done" and v.get("judge_route") != "rule"]
     with ThreadPoolExecutor(workers) as pool:
-        wide = list(pool.map(lambda ip: _judge(ip[1], talk, actions, top=60, max_tokens=4000), todo))
+        wide = list(pool.map(lambda ip: _judge(ip[1], talk, actions, top=60, max_tokens=6000, first=20), todo))
     changed = 0
     for (i, _), w in zip(todo, wide):
         if w.get("judge_error") or w["verdict"] == "error":
