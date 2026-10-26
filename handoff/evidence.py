@@ -186,7 +186,7 @@ def judge(promise: dict) -> dict:
     return judge_window(promise, window, base)
 
 
-def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14) -> dict:
+def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14, max_tokens: int = 2500) -> dict:
     """Ask the judge for a verdict on one promise, given the agent's later turns (actions and chat)."""
     at = parse_ts(promise["created_at"])
     shown = rank(promise, window, top=top)
@@ -211,7 +211,7 @@ def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14) -
         },
     ]
     for _ in range(2):  # long reasoning sometimes leaves an empty answer; ask once more
-        res = chat("judge", messages, max_tokens=2500)
+        res = chat("judge", messages, max_tokens=max_tokens)
         parsed = parse_json(res.get("text", "")) if res.get("ok") else None
         if parsed or not res.get("ok"):
             break

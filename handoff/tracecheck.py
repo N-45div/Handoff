@@ -8,6 +8,7 @@ The Village path, for one trace you own:
    one line can hold more than one promise.
 4. Nemotron Ultra judges each against the actions the same agent ran afterwards, citing ids.
    Narration never counts; a promise with nothing after it in the trace is "unclear".
+   Every not_done is judged again with 60 actions instead of 14 (the second look).
 
     python -m handoff.tracecheck path/to/session.jsonl --name "my swarm"
 """
@@ -47,8 +48,9 @@ TRACE_EXTRACT_SYSTEM = (
     "sent to a person or another agent. List every concrete task the SPEAKER commits to doing "
     "THEMSELVES after this message (I'll, I will, let me, next I'm, now I'm, X will follow): building, "
     "editing, running, checking, sending or posting something. Not commitments: work described as "
-    "already done, questions, thanks or agreement, asking someone else to act, and ongoing states with "
-    "no deliverable (keep monitoring, stay available). At most 3, each a separate deliverable. "
+    "already done, questions, thanks or agreement, asking someone else to act, ongoing states with "
+    "no deliverable (keep monitoring, stay available), and conditional offers that only apply if "
+    "someone asks (if requested, if you want, happy to). At most 3, each a separate deliverable. "
     "Reply with JSON only: "
     '{"commitments": [{"task": "short imperative, max 12 words", '
     '"done_when": "what visible action would show it was done, max 15 words"}]} '
@@ -125,7 +127,7 @@ def extract_all(row: dict) -> tuple[list[dict], str | None]:
     return promises, None if res.get("ok") else res.get("error")
 
 
-def _judge(promise: dict, talk: list[dict], actions: list[dict]) -> dict:
+def _judge(promise: dict, talk: list[dict], actions: list[dict], top: int = 14, max_tokens: int = 2500) -> dict:
     at = parse_ts(promise["created_at"])
     own_send = promise["source_id"].split(":msg")[0]
     later = [
@@ -145,7 +147,26 @@ def _judge(promise: dict, talk: list[dict], actions: list[dict]) -> dict:
     if not window:
         return {**base, "verdict": "unclear", "turn_ids": [], "judge_model": None, "judge_route": "rule",
                 "reason": "The trace ends before this agent does anything after the promise."}
-    return judge_window(promise, window, base)
+    return judge_window(promise, window, base, top=top, max_tokens=max_tokens)
+
+
+def second_look(verdicts: list[dict], promises: list[dict], talk: list[dict], actions: list[dict], workers: int) -> int:
+    """Judge every model-made not_done again with 60 actions instead of 14, as the Village run does.
+
+    A narrow first pass can miss the one action that shows the work. Returns how many changed.
+    """
+    todo = [(i, p) for i, (p, v) in enumerate(zip(promises, verdicts))
+            if v["verdict"] == "not_done" and v.get("judge_route") != "rule"]
+    with ThreadPoolExecutor(workers) as pool:
+        wide = list(pool.map(lambda ip: _judge(ip[1], talk, actions, top=60, max_tokens=4000), todo))
+    changed = 0
+    for (i, _), w in zip(todo, wide):
+        if w.get("judge_error") or w["verdict"] == "error":
+            verdicts[i]["second_look"] = "failed"
+            continue
+        changed += w["verdict"] != "not_done"
+        verdicts[i] = {**w, "first_verdict": "not_done", "second_look": True}
+    return changed
 
 
 def grade(trace: dict, name: str, max_promises: int = 25, workers: int = 4) -> dict:
@@ -171,12 +192,15 @@ def grade(trace: dict, name: str, max_promises: int = 25, workers: int = 4) -> d
     for v in verdicts:
         if v.get("judge_error"):
             v["verdict"] = "error"  # the judge never answered; never scored, never shown as unclear
+    changed = second_look(verdicts, promises, talk, actions, workers)
     return {
         "store": {k: v for k, v in kept.items() if k not in ("talk", "actions")},
         "candidates": len(cands),
         "graded_candidates": len(rows),
         "extract_errors": sum(1 for _, err in extracted if err),
         "judge_errors": sum(1 for v in verdicts if v.get("judge_error")),
+        "second_looks": sum(1 for v in verdicts if v.get("second_look") is True),
+        "second_look_changed": changed,
         "verdicts": verdicts,
         "actions": actions,
         "talk": talk,

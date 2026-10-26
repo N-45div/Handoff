@@ -89,6 +89,7 @@ def _evidence_verifier(verdicts: list[dict], by_id: dict[str, dict]) -> dict:
             "task": v["task"],
             "done_when": v["done_when"],
             "verdict": v["verdict"],
+            "first_verdict": v.get("first_verdict"),
             "reward": evidence_reward(v["verdict"]),
             "cited": _cited(v.get("turn_ids") or [], by_id),
             "reason": v.get("reason"),
@@ -117,6 +118,11 @@ def _evidence_task(name: str, trace: dict, money: dict | None, for_sale: bool, m
 
     graded = grade(trace, name, max_promises=max_promises)
     verdicts = graded["verdicts"]
+    if graded["graded_candidates"] and graded["extract_errors"] == graded["graded_candidates"]:
+        raise RuntimeError(
+            "Every model call failed, so nothing was graded. Check that Nightshift is running "
+            "(Meterless Runtime on 127.0.0.1:8088) and try again."
+        )
     talk = sorted(graded["talk"], key=lambda r: str(r.get("created_at") or ""))
     by_id = {a["id"]: a for a in graded["actions"]} | {r["id"]: r for r in talk}
     counts = Counter(v["verdict"] for v in verdicts)
@@ -157,6 +163,8 @@ def _evidence_task(name: str, trace: dict, money: dict | None, for_sale: bool, m
             **{k: counts[k] for k in ("kept", "partial", "not_done", "unclear")},
             "judge_errors": graded["judge_errors"],
             "extract_errors": graded["extract_errors"],
+            "second_looks": graded["second_looks"],
+            "second_look_changed": graded["second_look_changed"],
         },
         "judge_routes": dict(routes),
         "verifier": _evidence_verifier(verdicts, by_id),
