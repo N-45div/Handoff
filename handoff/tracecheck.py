@@ -162,14 +162,21 @@ def grade(trace: dict, name: str, max_promises: int = 25, workers: int = 4) -> d
     ]
     with ThreadPoolExecutor(workers) as pool:
         extracted = list(pool.map(extract_all, rows))
+    # A failed call is not a verdict: retry those lines once, one at a time, before giving up.
+    extracted = [extract_all(row) if err else (found, err) for row, (found, err) in zip(rows, extracted)]
     promises = [p for found, _ in extracted for p in found]
     with ThreadPoolExecutor(workers) as pool:
         verdicts = list(pool.map(lambda p: _judge(p, talk, actions), promises))
+    verdicts = [_judge(p, talk, actions) if v.get("judge_error") else v for p, v in zip(promises, verdicts)]
+    for v in verdicts:
+        if v.get("judge_error"):
+            v["verdict"] = "error"  # the judge never answered; never scored, never shown as unclear
     return {
         "store": {k: v for k, v in kept.items() if k not in ("talk", "actions")},
         "candidates": len(cands),
         "graded_candidates": len(rows),
         "extract_errors": sum(1 for _, err in extracted if err),
+        "judge_errors": sum(1 for v in verdicts if v.get("judge_error")),
         "verdicts": verdicts,
         "actions": actions,
         "talk": talk,

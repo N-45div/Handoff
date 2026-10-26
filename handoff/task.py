@@ -155,6 +155,8 @@ def _evidence_task(name: str, trace: dict, money: dict | None, for_sale: bool, m
             "graded_candidates": graded["graded_candidates"],
             "promises": len(verdicts),
             **{k: counts[k] for k in ("kept", "partial", "not_done", "unclear")},
+            "judge_errors": graded["judge_errors"],
+            "extract_errors": graded["extract_errors"],
         },
         "judge_routes": dict(routes),
         "verifier": _evidence_verifier(verdicts, by_id),
