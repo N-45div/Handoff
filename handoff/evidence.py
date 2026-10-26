@@ -183,7 +183,13 @@ def judge(promise: dict) -> dict:
     if not window:
         return {**base, "verdict": "not_done", "turn_ids": [], "judge_model": None, "judge_route": "rule",
                 "reason": "No computer action or chat message by this agent in the 24 hours after the promise."}
-    shown = rank(promise, window, top=14)
+    return judge_window(promise, window, base)
+
+
+def judge_window(promise: dict, window: list[dict], base: dict, top: int = 14) -> dict:
+    """Ask the judge for a verdict on one promise, given the agent's later turns (actions and chat)."""
+    at = parse_ts(promise["created_at"])
+    shown = rank(promise, window, top=top)
     lines = []
     for t in shown:
         mins = int((t["ts"] - at).total_seconds() // 60)
