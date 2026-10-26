@@ -22,6 +22,7 @@ DEMO_TABLE = "HANDOFF.promises"
 SAMPLES = {
     "nightshift": (ROOT / "fixtures" / "nightshift-swarm.jsonl", "Nightshift"),
     "coding": (ROOT / "fixtures" / "cursor-pr.jsonl", "Cursor PR 441"),
+    "trace": (ROOT / "fixtures" / "claude-code-trace.jsonl", "Stage one trace"),
 }
 
 app = FastAPI(title="Handoff", version="0.3.0")

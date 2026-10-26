@@ -24,9 +24,11 @@ def _tools() -> list[dict]:
         {
             "name": "handoff_build_task",
             "description": (
-                "Turn a raw swarm or coding-agent transcript into a lab task: "
-                "instruction, OpenEnv episode, promise verifier, 20% take if listed. "
-                "Village dumps are refused. Secrets (hf_, sk-, .env) are refused."
+                "Turn an agent trace into a lab task: instruction, episode, verifier, reward. "
+                "A trace with tool calls (a Claude Code session) is graded on evidence: each promise "
+                "is judged against the actions the agent then ran, citing them (handoff-reward@0.2). "
+                "A chat-only transcript is graded from chat and says so. 20% take if listed. "
+                "Village dumps are never listed. Secrets in tool output are redacted."
             ),
             "inputSchema": {
                 "type": "object",
@@ -105,6 +107,7 @@ def _slim_task(task: dict) -> dict:
         for k in (
             "kind",
             "version",
+            "grading",
             "title",
             "prompt",
             "why",
@@ -112,6 +115,8 @@ def _slim_task(task: dict) -> dict:
             "for_sale",
             "pricing",
             "counts",
+            "source",
+            "judge_routes",
             "verifier",
             "improve",
         )

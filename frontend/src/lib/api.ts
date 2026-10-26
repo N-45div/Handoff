@@ -78,14 +78,26 @@ export type Health = {
   nightshift_error?: string;
 };
 
+export type TaskRubricRow = {
+  id: string;
+  task: string;
+  verdict: string;
+  reward: number | null;
+  cited?: { id: string; type: string; action: string }[];
+  reason?: string;
+};
+
 export type Task = {
   kind: string;
+  version?: string;
+  grading?: "evidence" | "chat-only";
   title: string;
   prompt: string;
   license: string;
   for_sale: boolean;
-  pricing?: { list_price_usd: number; platform_take_usd: number };
-  verifier?: { passed: boolean; open: number };
+  source?: { format: string; agent: string; talk: number; actions: number; store?: string };
+  pricing?: { list_price_usd: number; platform_take_usd: number } | null;
+  verifier?: { passed: boolean; open?: number; score?: number | null; spec?: string; rubric?: TaskRubricRow[] };
   episode?: { steps?: unknown[]; terminal_reward?: number; reward_spec?: string };
 };
 

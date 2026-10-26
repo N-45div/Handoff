@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
+import { TaskPreview } from "../components/TaskPreview";
 import { VerdictRow } from "../components/VerdictRow";
 import { buildTask, investigate, sample, villageDemo, type Investigate, type Task } from "../lib/api";
 
@@ -142,6 +143,9 @@ export function Desk() {
             <button type="button" className="btn-ghost" onClick={() => load("coding")}>
               Coding log
             </button>
+            <button type="button" className="btn-ghost" onClick={() => load("trace")}>
+              Agent trace
+            </button>
             <button type="button" className="btn-ghost" onClick={runVillage}>
               Village
             </button>
@@ -156,15 +160,7 @@ export function Desk() {
 
         <div className="rounded-xl border border-zinc-800 p-4">
           {error && <p className="text-sm text-red-400">{error}</p>}
-          {task && (
-            <div className="mb-4 text-sm text-zinc-300">
-              <p className="text-zinc-400">{task.prompt}</p>
-              <p className="mt-2 font-mono text-xs">
-                pass {task.verifier?.passed ? "yes" : "no"} · open {task.verifier?.open} · $
-                {task.pricing?.list_price_usd} list
-              </p>
-            </div>
-          )}
+          {task && <TaskPreview task={task} />}
           {!result && !task && !error && (
             <p className="text-sm text-zinc-500">No investigation yet.</p>
           )}
