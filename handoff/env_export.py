@@ -7,11 +7,18 @@ from pathlib import Path
 
 REWARD_SPEC = "handoff-reward@0.1"
 REWARDS = {"kept": 1.0, "unclaimed": 0.0, "dropped": -1.0, "duplicate": -0.5}
+# Evidence grading (actions, not chat). Unclear is left unscored: no reward without proof either way.
+EVIDENCE_SPEC = "handoff-reward@0.2"
+EVIDENCE_REWARDS = {"kept": 1.0, "partial": 0.25, "not_done": -1.0}
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def reward_for(verdict: str) -> float:
     return REWARDS.get(verdict, 0.0)
+
+
+def evidence_reward(verdict: str) -> float | None:
+    return EVIDENCE_REWARDS.get(verdict)
 
 
 def episode(rows: list[dict], verdicts: list[dict], name: str) -> dict:
@@ -65,6 +72,43 @@ def episode(rows: list[dict], verdicts: list[dict], name: str) -> dict:
         },
         "steps": steps,
         "terminal_reward": terminal,
+        "promises": len(verdicts),
+    }
+
+
+def evidence_episode(talk: list[dict], actions: list[dict], verdicts: list[dict], name: str) -> dict:
+    """The trace as one time-ordered episode: what the agents said and what they ran.
+
+    A line with graded promises carries their rewards on the step where it was made.
+    """
+    graded: dict[str, list[dict]] = {}
+    for v in verdicts:
+        graded.setdefault(v.get("source_id") or v["id"], []).append(v)
+
+    def promises(row_id: str) -> list[dict]:
+        return [{"task": v.get("task"), "verdict": v["verdict"], "reward": evidence_reward(v["verdict"])}
+                for v in graded.get(row_id, [])]
+
+    events = [
+        {"t": r.get("created_at"), "kind": "talk", "speaker": r.get("speaker"), "channel": r.get("channel"),
+         "content": r.get("content"), "promises": promises(r["id"]),
+         "reward": round(sum(p["reward"] or 0.0 for p in promises(r["id"])), 3)}
+        for r in talk
+    ] + [
+        {"t": a.get("created_at"), "kind": "action", "id": a.get("id"), "speaker": a.get("speaker"),
+         "tool": a.get("action_type"), "action": a.get("action"), "output": a.get("output"), "reward": 0.0}
+        for a in actions
+    ]
+    events.sort(key=lambda e: (str(e["t"] or ""), e["kind"] != "talk"))
+    if not events:
+        raise ValueError("no rows to export")
+    scored = [evidence_reward(v.get("verdict") or "") for v in verdicts]
+    return {
+        "env": f"handoff-{name}",
+        "reward_spec": EVIDENCE_SPEC,
+        "reset": {"observation": events[0]},
+        "steps": events[1:],
+        "terminal_reward": round(sum(r for r in scored if r is not None), 3),
         "promises": len(verdicts),
     }
 
