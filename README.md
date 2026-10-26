@@ -27,14 +27,33 @@ Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your
 1. **One query layer.** The gated Village tables stream once into Parquet files in Zetaris's file store. Zetaris Lightning SQL reads them as `HANDOFF.promises` (chat), `HANDOFF.cu_turns` (computer actions), `HANDOFF.memories` (memory notes) and `HANDOFF.verdicts`. Every read in the app goes through Zetaris.
 2. **Find promises.** A first-person pattern picks candidate lines. Nemotron 3.5 Lightning (thinking off) names the concrete task. Nemotron 3 Ultra checks that the speaker owns the task, not another agent, before any judging.
 3. **Judge against actions.** For each promise, Handoff takes the agent's executed actions and later chat for the next 24 hours, ranks them against the task, and asks Nemotron 3 Ultra for kept, partial, not done or unclear, citing action ids. Only executed actions and tool output count. The agent's narration is shown as context and never proves anything. Every "not done" gets a second, wider look.
-4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history.
+4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history. The engine is the official H-MEM reference (`engines/hmem/reference`, Apache-2.0, unmodified, pulled by `npm run setup`); `npm test` in `hmem/` runs its own suite (10 of 10 pass), and `python -m handoff.hmem` checks the live engine: health, a recall, and one verdict's ledger.
 5. **Explain.** Nemotron 3 Ultra writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
 
 Every model call goes through `handoff/llm.py` to the **Meterless Runtime** (Nightshift), which routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt; each verdict keeps its receipt id. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published run, 245 of the 639 final verdicts carry a Meterless receipt; the other 394 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. A Meterless-only re-run of those 394 was stopped when NVIDIA's trial endpoint answered nearly every call with 429. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
 
 ## The desk
 
-`http://localhost:5173/desk`. **Village** opens the investigation: counts, who left work undone, the cited Nemotron paragraph, and every verdict. **Evidence** opens two columns: what the agent did (`HANDOFF.cu_turns`) and what it wrote in its memory (`HANDOFF.memories`, context only). You can also paste your own swarm or coding-agent log; without a computer-use log, those are scored from chat only, and the desk says so.
+`http://localhost:5173/desk`. **Village** opens the investigation: counts, who left work undone, the cited Nemotron paragraph, and every verdict. **Evidence** opens two columns: what the agent did (`HANDOFF.cu_turns`) and what it wrote in its memory (`HANDOFF.memories`, context only). **Agent trace** loads a small Claude Code-shaped sample, and **Build task** turns it, or any trace you paste or attach, into a training task (next section). A transcript with no actions is graded from chat only, and the task says so.
+
+## Traces into training tasks
+
+Labs train agents on tasks, not log dumps, and a task is only as good as its reward. Handoff turns an agent trace you own into a task whose reward comes from what the agent ran.
+
+1. **Split talk from actions.** In a Claude Code session log, the agent's text and the messages it sends to other agents are talk; every tool call, with its result, is an action. Anything that looks like a secret is redacted on the way in (pattern matching, not a guarantee), and the finished task is checked again.
+2. **Store and read through Zetaris.** Talk and actions become two Parquet FILESTORE tables and are read back through Lightning SQL. If Zetaris is not running, the trace is graded from memory and the task records that.
+3. **Grade.** Nemotron 3.5 Lightning lists the commitments in each line (one line can hold two), and Nemotron 3 Ultra judges each against the actions the same agent ran afterwards, through Meterless, citing action ids. A promise with nothing after it in the trace is unclear, not not-done.
+4. **Export** a task (`version 0.2`, reward spec `handoff-reward@0.2`):
+   - `prompt`: the instruction for the agent being trained.
+   - `verifier.rubric`: each promise with its task, verdict, reward, the cited actions, the judge's reason and the receipt of the call that judged it.
+   - Rewards: kept +1, partial +0.25, not done −1; unclear is left unscored, so there is no reward without proof either way.
+   - `episode`: talk and actions in time order, with each promise's reward on the step where it was made.
+
+```bash
+python -m handoff.tracecheck path/to/session.jsonl --name "my swarm"   # grades, prints the verdicts
+```
+
+The desk's **Build task**, the `/api/task` endpoint and the `handoff_build_task` MCP tool all build the same task. On the sample trace, the agent promised a test file, a posted pytest log and a RUN.md update; the task grades the first two kept and the third not done, for a score of 0.333. Village data is never listed for sale.
 
 ## Run it
 
@@ -68,6 +87,10 @@ python -m handoff.village remember
 python -m handoff.village why
 python -m handoff.app
 cd frontend && npm install && npm run dev
+
+# Tests
+python -m unittest discover -s tests
+cd hmem && npm test
 ```
 
 Zetaris runs locally in Docker (UI on :3000, REST on :8888). Credentials stay in `.env.local`.
@@ -83,7 +106,7 @@ Zetaris runs locally in Docker (UI on :3000, REST on :8888). Credentials stay in
 | `handoff_investigate` | Score a pasted transcript |
 | `handoff_open_promises` | Open promises from the last investigation |
 | `handoff_improve` | What to change next session |
-| `handoff_build_task` | Export a transcript you own as an OpenEnv-shaped task with a promise verifier |
+| `handoff_build_task` | Turn a trace you own into a training task, graded on the agent's actions when the trace has them |
 
 Village data is never exported as a task.
 
@@ -95,6 +118,7 @@ Village data is never exported as a task.
 - The owner check also removes some real promises. Its 256 removals have not been reviewed by hand.
 - The pattern only finds first-person phrasing. Promises worded another way are not counted.
 - An LLM judge can be wrong. That is why the desk records reviewer corrections in H-MEM instead of hiding them.
+- Trace grading reads Claude Code session logs and plain JSONL (speaker/content lines, plus lines with an `action`). Other agent log formats need an adapter.
 - Whether writing a promise into memory helps keep it was tested and was inconclusive. The notes mention nearly every task, so a keyword match cannot tell a to-do from a passing mention. Handoff does not claim that result.
 
 ## Data
