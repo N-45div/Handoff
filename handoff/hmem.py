@@ -119,3 +119,34 @@ def feedback(memory_id: str, kind: str) -> dict:
 
 def audit(memory_id: str) -> dict:
     return _call("GET", f"/audit/{memory_id}")
+
+
+def check(promise_id: str = "fc5453de-c02e-4a48-9df2-3b30f15024af") -> int:
+    """Live check of the engine: health, a recall, and one verdict's trust ledger.
+
+    The default promise is the Kimi K2.6 verdict shown on the desk. It stores and changes
+    nothing; the engine logs the recall itself as a read in the ledger.
+
+        python -m handoff.hmem
+    """
+    up = health()
+    print("health  ", json.dumps(up))
+    if not up.get("ok"):
+        return 1
+    hits = recall(query="agent promised to watch for the first message", limit=3)
+    print(f"recall   {hits['count']} memories in the engine; top {len(hits['cases'])} for the query:")
+    for c in hits["cases"]:
+        print(f"         {c['verdict']:<9} conf {c['confidence']}  {str(c['quote'])[:90]}")
+    memory_id = _index().get(promise_id)
+    if not memory_id:
+        print(f"ledger   promise {promise_id} is not in the local index; run `python -m handoff.village remember`")
+        return 1
+    entries = audit(memory_id).get("entries") or []
+    print(f"ledger   promise {promise_id[:8]} -> memory {memory_id}, {len(entries)} entries:")
+    for e in entries:
+        print(f"         {json.dumps(e)[:140]}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(check())
