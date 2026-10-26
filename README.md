@@ -4,6 +4,10 @@
 
 Agents in a team say "I'll send it", "on it", "let me fix that". Read from chat alone, nearly all of those look kept, because the agent keeps talking. Handoff reads the agent's own computer-use log instead. Chat, executed actions and memory notes are separate sources, and Zetaris joins them in one SQL layer. NVIDIA Nemotron names each promise and judges it against the actions. Every verdict goes into Meterless H-MEM with its sources, so a reviewer can confirm it or mark it wrong.
 
+The same check turns an agent trace you own into a training task: every promise in the trace is graded on what the agent then ran, and that grade is the task's reward.
+
+How the parts fit together, and what happens when one of them fails: [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## What it found in the AI Village
 
 Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your leader!", "Organise an event!" and "Compete to be the best AI Assistant!" (May 26 to July 6, 2026). 22 agents from several labs (21 of them made promises), 9,614 agent chat messages, 213,113 computer actions and 15,372 memory notes.
@@ -27,10 +31,22 @@ Three weeks of the [AI Village](https://theaidigest.org/village): "Finetune your
 1. **One query layer.** The gated Village tables stream once into Parquet files in Zetaris's file store. Zetaris Lightning SQL reads them as `HANDOFF.promises` (chat), `HANDOFF.cu_turns` (computer actions), `HANDOFF.memories` (memory notes) and `HANDOFF.verdicts`. Every read in the app goes through Zetaris.
 2. **Find promises.** A first-person pattern picks candidate lines. Nemotron 3.5 Lightning (thinking off) names the concrete task. Nemotron 3 Ultra checks that the speaker owns the task, not another agent, before any judging.
 3. **Judge against actions.** For each promise, Handoff takes the agent's executed actions and later chat for the next 24 hours, ranks them against the task, and asks Nemotron 3 Ultra for kept, partial, not done or unclear, citing action ids. Only executed actions and tool output count. The agent's narration is shown as context and never proves anything. Every "not done" gets a second, wider look.
-4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history. The engine is the official H-MEM reference (`engines/hmem/reference`, Apache-2.0, unmodified, pulled by `npm run setup`); `npm test` in `hmem/` runs its own suite (10 of 10 pass), and `python -m handoff.hmem` checks the live engine: health, a recall, and one verdict's ledger.
+4. **Remember and review.** Each verdict goes into the [Meterless H-MEM](https://github.com/Meterless/Meterless/tree/main/engines/hmem) reference engine (`hmem/`), with the promise id and cited action ids as provenance. Confirm or Mark wrong on the desk changes the verdict's confidence through H-MEM's trust ledger, and the ledger keeps the history.
 5. **Explain.** Nemotron 3 Ultra writes one paragraph about why work slipped, using only the verdict table and citing promise ids.
 
-Every model call goes through `handoff/llm.py` to the **Meterless Runtime** (Nightshift), which routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt; each verdict keeps its receipt id. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published run, 245 of the 639 final verdicts carry a Meterless receipt; the other 394 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. A Meterless-only re-run of those 394 was stopped when NVIDIA's trial endpoint answered nearly every call with 429. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
+## Zetaris, Meterless and NVIDIA in Handoff
+
+**Zetaris: one SQL layer over every source.** Chat, computer actions, memory notes and verdicts are Parquet files in Zetaris's file store, registered as Lightning FILESTORE tables (`sql/01_handoff_filestore.sql`; the verdicts by `python -m handoff.village publish`): `HANDOFF.promises`, `HANDOFF.cu_turns`, `HANDOFF.memories`, `HANDOFF.verdicts`. Every read in the Village investigation goes through Lightning SQL over the REST API (`handoff/zetaris.py`): candidate promises, the speaker's actions in the 24 hours after a promise, the actions a verdict cites, and the memory note beside them. A trace uploaded to build a training task is stored the same way, as two FILESTORE tables, and read back before grading (`handoff/tracecheck.py`).
+
+**Meterless Engine: H-MEM.** Handoff's verdict memory is the official H-MEM reference engine (`engines/hmem/reference` from the Meterless repo, Apache-2.0, unmodified, pulled into `hmem/vendor/` by `npm run setup`) behind a small local HTTP helper (`hmem/server.ts`, client `handoff/hmem.py`). Each verdict is stored with the promise id and the cited action ids as provenance; recall ranks earlier cases for a new investigation; Confirm and Mark wrong on the desk move a verdict's confidence through H-MEM's trust ledger, which keeps the history.
+
+- Test: `cd hmem && npm test` runs the engine's own suite (10 of 10 pass).
+- Live check: `python -m handoff.hmem` prints the engine's health (639 memories), a recall, and the ledger of the Kimi K2.6 verdict shown on the desk (its create and three Confirm entries).
+- Demo: on the desk, open any verdict's evidence and press Confirm; the line under it shows the new confidence and ledger count.
+
+**Meterless Runtime: the primary model provider.** Every model call goes through `handoff/llm.py` to Nightshift's OpenAI-compatible Runtime on `127.0.0.1:8088`, with the `meterless-app: handoff` header. Nightshift routes it to NVIDIA's hosted Nemotron and returns a signed compute receipt (`meterless.compute_receipt.v1`); each verdict keeps its receipt id and the desk shows it. NVIDIA's trial endpoints rate-limit hard, so when Meterless keeps failing, the same Nemotron model on Nebius answers instead and the verdict is marked `nebius-fallback`. In the published Village run, 245 of the 639 final verdicts carry a Meterless receipt; the other 394 came from the same Nemotron 3 Ultra on the fallback, mostly while NVIDIA was rate-limiting or Nightshift was restarting. A Meterless-only re-run of those 394 was stopped when NVIDIA's trial endpoint answered nearly every call with 429. Trace grading can be held to Meterless only with `HANDOFF_NO_FALLBACK=1`; the sample below was graded that way.
+
+**NVIDIA Nemotron does the reading.** Nemotron 3.5 Lightning (thinking off) finds the commitments and names each task. Nemotron 3 Ultra (550B) checks that the speaker owns the task, judges it against the actions with cited ids, gives every "not done" a second look, and writes the cited explanation. Nemotron 3 Super is not enabled on NVIDIA's trial account, so judging uses Ultra.
 
 ## The desk
 
@@ -42,7 +58,7 @@ Labs train agents on tasks, not log dumps, and a task is only as good as its rew
 
 1. **Split talk from actions.** In a Claude Code session log, the agent's text and the messages it sends to other agents are talk; every tool call, with its result, is an action. Anything that looks like a secret is redacted on the way in (pattern matching, not a guarantee), and the finished task is checked again.
 2. **Store and read through Zetaris.** Talk and actions become two Parquet FILESTORE tables and are read back through Lightning SQL. If Zetaris is not running, the trace is graded from memory and the task records that.
-3. **Grade.** Nemotron 3.5 Lightning lists the commitments in each line (one line can hold two), and Nemotron 3 Ultra judges each against the actions the same agent ran afterwards, through Meterless, citing action ids. A promise with nothing after it in the trace is unclear, not not-done.
+3. **Grade.** Nemotron 3.5 Lightning lists the commitments in each line (one line can hold two; offers that wait on a request, like "if requested", are dropped), and Nemotron 3 Ultra judges each against the actions the same agent ran afterwards, through Meterless, citing action ids. The judge always sees the actions right after the promise as well as the best keyword matches, because the work usually comes next and often shares no words with the promise. Every "not done" is judged again with 60 actions. A promise with nothing after it in the trace is unclear, not not-done, and a model call that fails is retried and never counted as a verdict.
 4. **Export** a task (`version 0.2`, reward spec `handoff-reward@0.2`):
    - `prompt`: the instruction for the agent being trained.
    - `verifier.rubric`: each promise with its task, verdict, reward, the cited actions, the judge's reason and the receipt of the call that judged it.
@@ -54,6 +70,8 @@ python -m handoff.tracecheck path/to/session.jsonl --name "my swarm"   # grades,
 ```
 
 The desk's **Build task**, the `/api/task` endpoint and the `handoff_build_task` MCP tool all build the same task. On the sample trace, the agent promised a test file, a posted pytest log and a RUN.md update; the task grades the first two kept and the third not done, for a score of 0.333. Village data is never listed for sale.
+
+On a real five-hour Claude Code session from a four-agent build team (391 actions, graded through Meterless only), the task found 43 promises: 33 kept, 4 partial, 3 not done and 3 unclear, for a score of 0.775. All 43 judgments carry a Meterless receipt, each verdict cites 2.7 actions on average, and the second look changed 7 of 10 not-done verdicts. Extraction varies a little between runs (37 to 43 promises over three runs), so treat one run's counts as one measurement.
 
 ## Run it
 
@@ -112,13 +130,14 @@ Village data is never exported as a task.
 
 ## Limits
 
-- The judge sees the 14 actions that best match the task, or 60 in the second look. Proof elsewhere in the log can be missed.
+- The judge sees the 14 actions that best match the task, or 60 in the second look (in traces, always including the actions right after the promise). Proof elsewhere in the log can be missed.
 - The window is 24 hours, so work done later counts as not done.
 - Screenshots are not read yet. "Unclear" often means the proof was only on screen.
 - The owner check also removes some real promises. Its 256 removals have not been reviewed by hand.
 - The pattern only finds first-person phrasing. Promises worded another way are not counted.
 - An LLM judge can be wrong. That is why the desk records reviewer corrections in H-MEM instead of hiding them.
 - Trace grading reads Claude Code session logs and plain JSONL (speaker/content lines, plus lines with an `action`). Other agent log formats need an adapter.
+- In traces, a file write is recorded by its path, not its content, so a promise about what a file contains is often graded partial or unclear.
 - Whether writing a promise into memory helps keep it was tested and was inconclusive. The notes mention nearly every task, so a keyword match cannot tell a to-do from a passing mention. Handoff does not claim that result.
 
 ## Data
