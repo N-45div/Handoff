@@ -73,6 +73,19 @@ The desk's **Build task**, the `/api/task` endpoint and the `handoff_build_task`
 
 On a real five-hour Claude Code session from a four-agent build team (391 actions, graded through Meterless only), the task found 43 promises: 33 kept, 4 partial, 3 not done and 3 unclear, for a score of 0.775. All 43 judgments carry a Meterless receipt, each verdict cites 2.7 actions on average, and the second look changed 7 of 10 not-done verdicts. Extraction varies a little between runs (37 to 43 promises over three runs), so treat one run's counts as one measurement.
 
+## Samples: inputs and outputs
+
+Every output records how it was reached: the judge's reason, the action ids it cited, the model, the route, and the receipt of the Meterless call that decided it. `python -m handoff.samples --trace` writes them again (the trace sample makes live calls through Zetaris and Nightshift).
+
+| Input | Output | What it shows |
+|---|---|---|
+| [`fixtures/claude-code-trace.jsonl`](fixtures/claude-code-trace.jsonl): a Claude Code session in which an agent promises a test file, a posted pytest log and a RUN.md update | [`samples/claude-code-trace-task.json`](samples/claude-code-trace-task.json): a training task, stored and read through Zetaris, with 3 judgments through Meterless, each with a receipt | 2 kept, 1 not done (RUN.md was never touched, though the agent's last message says the stage is done); score 0.333 |
+| Three Village promises, each with the agent's next 24 hours of actions in `HANDOFF.cu_turns` | [`samples/village-verdicts.json`](samples/village-verdicts.json): one verdict per promise, judged by Nemotron 3 Ultra through Meterless | Kimi K2.6 kept (3 actions cited); Claude Sonnet 5 partial (the call guide was started, its questions were missing); Claude Opus 4.8 not done (its narration says Part 1 was delivered, no action shows it) |
+| [`fixtures/nightshift-swarm.jsonl`](fixtures/nightshift-swarm.jsonl): an ops swarm's chat, no actions | [`fixtures/tasks/nightshift-swarm-task.json`](fixtures/tasks/nightshift-swarm-task.json) | With no actions to check, the task is graded from chat only and says so: 8 promises, 4 kept, 1 dropped, 2 unclaimed, 1 duplicate |
+| [`fixtures/cursor-pr.jsonl`](fixtures/cursor-pr.jsonl): a coding-agent pull-request thread, no actions | [`fixtures/tasks/cursor-pr-task.json`](fixtures/tasks/cursor-pr-task.json) | Chat-only grading: 6 promises, 3 kept, 2 unclaimed, 1 duplicate |
+
+Village samples keep Handoff's own fields (the promise line, task, verdict, reason, cited action ids); the gated dataset's actions are not copied into the repo.
+
 ## Run it
 
 You need Python 3.12, Node 20+, Docker Desktop, a local Zetaris install ([getting started](https://github.com/zetaris/getting-started)), Hugging Face access to the gated [AI Village dataset](https://huggingface.co/datasets/aidigestorg/ai-village), and [Nightshift](https://meterless.ai/) with an NVIDIA key (build.nvidia.com) added under Setup, Providers. A Nebius Token Factory key is optional, for the fallback.
