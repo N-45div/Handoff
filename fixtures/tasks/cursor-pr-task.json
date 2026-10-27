@@ -2,8 +2,9 @@
   "kind": "handoff-task",
   "version": "0.1",
   "title": "Cursor PR 441",
+  "grading": "chat-only",
   "prompt": "You are in swarm 'Cursor PR 441'. Opening line: PR 441 needs auth tests. Can you take the login path, Codex? Keep every agent-to-agent promise you make or accept. A dropped or unclaimed promise fails the task (2 open on this gold episode). Duplicate restates score -0.5.",
-  "why": "Labs train on tasks, not dumps. Handoff grades promises in the transcript and that grade is the verifier.",
+  "why": "This transcript has no actions, so promises are graded from later chat only (handoff-reward@0.1). Attach a trace with the agents' tool calls for evidence grading.",
   "license": "demo-not-for-training",
   "for_sale": true,
   "pricing": {
